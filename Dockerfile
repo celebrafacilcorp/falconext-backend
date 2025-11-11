@@ -25,17 +25,23 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Instalar pnpm en runtime para comandos Prisma
+RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
+
 # Usuario no root
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Reutilizar node_modules y artefactos del builder
+# Copiar archivos necesarios del builder
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
-COPY package.json ./package.json
+COPY --from=builder /app/package.json ./package.json
+
+# Asegurar que el usuario tenga permisos sobre los archivos copiados
+RUN chown -R appuser:appgroup /app
 
 USER appuser
 EXPOSE 4000
 
-# Migraciones seguras (no borran BD) y levantar app
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
+# Regenerar Prisma Client, ejecutar migraciones y levantar app
+CMD ["sh", "-c", "pnpm exec prisma generate && npx prisma migrate deploy && node dist/src/main.js"]
