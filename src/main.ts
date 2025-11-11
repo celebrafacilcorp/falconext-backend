@@ -18,7 +18,7 @@ async function bootstrap() {
   const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
-    'https://uinephi-production.up.railway.app',
+    'https://falconext-mype-production.up.railway.app',
   ];
 
   app.enableCors({
