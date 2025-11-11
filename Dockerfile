@@ -29,5 +29,5 @@ RUN chown -R appuser:appgroup /app
 USER appuser
 EXPOSE 4000
 
-# Ejecutar migraciones y iniciar aplicación
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
+# Ejecutar migraciones y iniciar aplicación (regenerar client justo antes de iniciar)
+CMD ["sh", "-c", "pnpm exec prisma generate && npx prisma migrate deploy && node dist/src/main.js"]
