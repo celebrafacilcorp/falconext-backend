@@ -6,7 +6,6 @@ import {
   IsString,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { PersonaType } from '@prisma/client';
 
 export class CreateClienteDto {
   @IsString()
@@ -56,6 +55,6 @@ export class CreateClienteDto {
   @IsString()
   distrito: string;
 
-  @IsEnum(PersonaType)
-  persona: PersonaType;
+  @IsEnum(['CLIENTE', 'CLIENTE_PROVEEDOR', 'PROVEEDOR'])
+  persona?: 'CLIENTE' | 'CLIENTE_PROVEEDOR' | 'PROVEEDOR';
 }

@@ -5,7 +5,8 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
-import { Prisma, EstadoType } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 import { KardexService } from '../kardex/kardex.service';
 import * as XLSX from 'xlsx';
@@ -94,9 +95,9 @@ export class ProductoService {
         descripcion,
         unidadMedidaId,
         tipoAfectacionIGV,
-        precioUnitario: new Prisma.Decimal(precioUnitario),
-        valorUnitario: new Prisma.Decimal(valorUnitario),
-        igvPorcentaje: new Prisma.Decimal(igvPorcentaje),
+        precioUnitario: new Decimal(precioUnitario),
+        valorUnitario: new Decimal(valorUnitario),
+        igvPorcentaje: new Decimal(igvPorcentaje),
         stock,
         stockMinimo: stockMinimo != null ? stockMinimo : undefined,
         stockMaximo: stockMaximo != null ? stockMaximo : undefined,
@@ -129,7 +130,7 @@ export class ProductoService {
     } = params;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.ProductoWhereInput = {
+    const where: any = {
       empresaId,
       estado: { in: ['ACTIVO', 'INACTIVO'] },
       OR: search
@@ -256,19 +257,19 @@ export class ProductoService {
         tipoAfectacionIGV: data.tipoAfectacionIGV,
         valorUnitario:
           data.valorUnitario !== undefined
-            ? new Prisma.Decimal(data.valorUnitario)
+            ? new Decimal(data.valorUnitario)
             : undefined,
         igvPorcentaje:
           data.igvPorcentaje !== undefined
-            ? new Prisma.Decimal(data.igvPorcentaje)
+            ? new Decimal(data.igvPorcentaje)
             : undefined,
         precioUnitario:
           data.precioUnitario !== undefined
-            ? new Prisma.Decimal(data.precioUnitario)
+            ? new Decimal(data.precioUnitario)
             : undefined,
         costoPromedio:
           data.costoUnitario !== undefined
-            ? new Prisma.Decimal(data.costoUnitario)
+            ? new Decimal(data.costoUnitario)
             : undefined,
         stock: data.stock,
         stockMinimo:
@@ -279,7 +280,7 @@ export class ProductoService {
     });
   }
 
-  async cambiarEstado(id: number, empresaId: number, estado: EstadoType) {
+  async cambiarEstado(id: number, empresaId: number, estado: string) {
     const producto = await this.prisma.producto.findFirst({
       where: { id, empresaId },
     });
@@ -292,7 +293,7 @@ export class ProductoService {
   }
 
   async exportar(empresaId: number, search?: string): Promise<Buffer> {
-    const where: Prisma.ProductoWhereInput = {
+    const where: any = {
       empresaId,
       estado: { in: ['ACTIVO', 'INACTIVO'] },
       OR: search
@@ -451,12 +452,12 @@ export class ProductoService {
           {
             codigo: codigo.toString(),
             descripcion: descripcion.toString(),
-            unidadMedidaId,
+            unidadMedidaId: Number(unidadMedidaId),
             tipoAfectacionIGV,
             precioUnitario,
             igvPorcentaje,
             stock,
-            categoriaId,
+            categoriaId: categoriaId ? Number(categoriaId) : undefined,
           },
           empresaId,
         );

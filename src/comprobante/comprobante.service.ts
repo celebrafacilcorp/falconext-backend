@@ -5,7 +5,7 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
-import { EstadoSunat, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { KardexService } from '../kardex/kardex.service';
 import { InventarioNotificacionesService } from '../notificaciones/inventario-notificaciones.service';
@@ -33,7 +33,7 @@ export class ComprobanteService {
     order?: 'asc' | 'desc';
     fechaInicio?: string;
     fechaFin?: string;
-    estado?: EstadoSunat;
+    estado?: string;
     tipoDoc?: string;
     estadoPago?: string;
   }) {
@@ -78,7 +78,7 @@ export class ComprobanteService {
       ).toISOString();
     }
 
-    const where: Prisma.ComprobanteWhereInput = {
+    const where: any = {
       empresaId,
       tipoDoc: { in: tipoDoc ? [tipoDoc] : tiposPermitidos },
       ...(search
@@ -244,7 +244,7 @@ export class ComprobanteService {
     return this.prisma.comprobante.update({
       where: { id: comprobanteId },
       data: {
-        estadoEnvioSunat: 'ANULADO' as EstadoSunat,
+        estadoEnvioSunat: 'ANULADO' as string,
         ...(isInformal ? { estadoPago: 'ANULADO' as any, saldo: 0 } : {}),
       },
     });
@@ -651,7 +651,7 @@ export class ComprobanteService {
       totalImpuestos: totalIGV,
       subTotal,
       mtoImpVenta,
-      estadoEnvioSunat: 'PENDIENTE' as EstadoSunat,
+      estadoEnvioSunat: 'PENDIENTE' as string,
       ...(formalTipo === '08'
         ? {
             tipDocAfectado: tipDocAfectado ?? null,
@@ -1034,7 +1034,7 @@ export class ComprobanteService {
         totalImpuestos: totalIGV,
         subTotal,
         mtoImpVenta,
-        estadoEnvioSunat: 'PENDIENTE' as EstadoSunat,
+        estadoEnvioSunat: 'PENDIENTE' as string,
         detalles: {
           create: detalleFinal,
         },
@@ -1194,7 +1194,7 @@ export class ComprobanteService {
       totalImpuestos: totalIGV,
       subTotal,
       mtoImpVenta,
-      estadoEnvioSunat: 'NO_APLICA' as EstadoSunat,
+      estadoEnvioSunat: 'NO_APLICA' as string,
       estadoPago: estadoPagoInicial,
       saldo: saldoInicial,
       adelanto: tipoDoc === 'NP' && adelanto ? Number(adelanto) : undefined,
@@ -1324,7 +1324,7 @@ export class ComprobanteService {
         formaPagoTipo: 'CREDITO',
         formaPagoMoneda: 'PEN',
         tipoMoneda: 'PEN',
-        estadoEnvioSunat: 'NO_APLICA' as EstadoSunat,
+        estadoEnvioSunat: 'NO_APLICA' as string,
         estadoPago: estadoPagoInicial,
         saldo: Math.max(0, saldo),
         estadoOT: estadoOT || 'PENDIENTE',

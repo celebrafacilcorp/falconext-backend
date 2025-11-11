@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PersonaType, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
@@ -24,7 +24,7 @@ export class ClienteService {
     departamento: string;
     provincia: string;
     distrito: string;
-    persona: PersonaType;
+    persona?: string;
   }) {
     const { tipoDoc, nroDoc } = data;
 
@@ -54,7 +54,7 @@ export class ClienteService {
         telefono: data.telefono,
         empresaId: data.empresaId,
         tipoDocumentoId: tipoDocumento.id,
-        persona: data.persona,
+        persona: data.persona || 'CLIENTE',
         departamento: data.departamento,
         provincia: data.provincia,
         distrito: data.distrito,
@@ -81,7 +81,7 @@ export class ClienteService {
     } = params;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.ClienteWhereInput = {
+    const where: any = {
       empresaId,
       estado: 'ACTIVO',
       ...(search
@@ -128,7 +128,7 @@ export class ClienteService {
     departamento?: string;
     provincia?: string;
     distrito?: string;
-    persona?: PersonaType;
+    persona?: string;
   }) {
     const cliente = await this.prisma.cliente.findFirst({
       where: { id: data.id, empresaId: data.empresaId },
@@ -186,7 +186,7 @@ export class ClienteService {
   }
 
   async exportar(empresaId: number, search?: string): Promise<Buffer> {
-    const where: Prisma.ClienteWhereInput = {
+    const where: any = {
       empresaId,
       estado: { in: ['ACTIVO', 'INACTIVO'] },
       OR: search
@@ -237,7 +237,7 @@ export class ClienteService {
 
     const resultados: { cliente?: any; error?: string }[] = [];
 
-    const normalizarPersona = (valor: any): PersonaType => {
+    const normalizarPersona = (valor: any): string => {
       const v = (valor || '').toString().trim().toUpperCase();
       if (v === 'CLIENTE') return 'CLIENTE';
       if (v === 'PROVEEDOR') return 'PROVEEDOR';

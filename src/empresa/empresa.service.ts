@@ -3,9 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, PrismaClient, TipoEmpresa, EstadoType, Rol } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
-import * as bcrypt from 'bcrypt';
+import bcrypt from 'bcrypt';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { UpdateEmpresaDto } from './dto/update-empresa.dto';
 import axios from 'axios';
@@ -39,7 +40,7 @@ export class EmpresaService {
 
   async crear(data: CreateEmpresaDto) {
     const fechaActivacion = parseDDMMYYYY(data.fechaActivacion);
-    const tipoEmpresa = data.tipoEmpresa || TipoEmpresa.FORMAL;
+    const tipoEmpresa = data.tipoEmpresa || 'FORMAL';
     const esPrueba = data.esPrueba || false;
 
     const exist = await this.prisma.empresa.findUnique({
@@ -68,7 +69,7 @@ export class EmpresaService {
         // Buscar plan según tipo de empresa
         const plan = await this.prisma.plan.findFirst({
           where: {
-            nombre: tipoEmpresa === TipoEmpresa.INFORMAL ? 'Mi Básico Informal' : 'Básico Formal',
+            nombre: tipoEmpresa === 'INFORMAL' ? 'Mi Básico Informal' : 'Básico Formal',
             esPrueba: false,
           },
         });
@@ -135,7 +136,7 @@ export class EmpresaService {
         distrito: data.distrito,
         ubigeo: data.ubigeo,
         fechaExpiracion: expiracion,
-        estado: EstadoType.ACTIVO,
+        estado: 'ACTIVO',
         providerToken: data.providerToken || null,
         providerId: data.providerId || null,
         usuarios: {
@@ -145,15 +146,15 @@ export class EmpresaService {
             password: hashed,
             dni: data.usuario.dni,
             celular: data.usuario.celular,
-            rol: Rol.ADMIN_EMPRESA,
-            estado: EstadoType.ACTIVO,
+            rol: 'ADMIN_EMPRESA',
+            estado: 'ACTIVO',
           },
         },
         clientes: {
           create: {
             nombre: 'CLIENTES VARIOS',
             nroDoc: '10000000',
-            estado: EstadoType.ACTIVO,
+            estado: 'ACTIVO',
             tipoDocumento: { connect: { codigo: '1' } }, // DNI
           },
         },
@@ -168,7 +169,7 @@ export class EmpresaService {
               igvPorcentaje: 0,
               stock: 0,
               tipoAfectacionIGV: '10',
-              estado: EstadoType.INACTIVO,
+              estado: 'INACTIVO',
             },
             {
               codigo: 'IPM',
@@ -179,7 +180,7 @@ export class EmpresaService {
               igvPorcentaje: 0,
               stock: 0,
               tipoAfectacionIGV: '10',
-              estado: EstadoType.INACTIVO,
+              estado: 'INACTIVO',
             },
             {
               codigo: 'PLD',
@@ -190,7 +191,7 @@ export class EmpresaService {
               igvPorcentaje: 0,
               stock: 0,
               tipoAfectacionIGV: '10',
-              estado: EstadoType.INACTIVO,
+              estado: 'INACTIVO',
             },
           ],
         },
@@ -217,11 +218,11 @@ export class EmpresaService {
     } = params;
     const skip = (page - 1) * limit;
 
-    let where: Prisma.EmpresaWhereInput = { estado: EstadoType.ACTIVO };
+    let where: any = { estado: 'ACTIVO' };
     if (search) {
       where = {
         AND: [
-          { estado: EstadoType.ACTIVO },
+          { estado: 'ACTIVO' },
           {
             OR: [
               { ruc: { contains: search } },
@@ -325,7 +326,7 @@ export class EmpresaService {
       return empresaActualizada;
     } catch (error: any) {
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error instanceof PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
         const campo = Array.isArray(error.meta?.target)

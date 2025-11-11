@@ -1,5 +1,4 @@
 import { IsEmail, IsEnum, IsInt, IsOptional, IsString } from 'class-validator';
-import { PersonaType } from '@prisma/client';
 
 export class UpdateClienteDto {
   @IsInt()
@@ -38,6 +37,6 @@ export class UpdateClienteDto {
   distrito?: string;
 
   @IsOptional()
-  @IsEnum(PersonaType)
-  persona?: PersonaType;
+  @IsEnum(['CLIENTE', 'CLIENTE_PROVEEDOR', 'PROVEEDOR'])
+  persona?: 'CLIENTE' | 'CLIENTE_PROVEEDOR' | 'PROVEEDOR';
 }
