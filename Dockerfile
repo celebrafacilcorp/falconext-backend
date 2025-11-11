@@ -6,7 +6,7 @@ RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
 # Copy package manifests and Prisma schema BEFORE install so postinstall (prisma generate) succeeds
 COPY package.json pnpm-lock.yaml* ./
 COPY prisma ./prisma
-RUN pnpm install --frozen-lockfile || npm ci
+RUN pnpm install --frozen-lockfile
 
 FROM node:20-alpine AS builder
 WORKDIR /app
