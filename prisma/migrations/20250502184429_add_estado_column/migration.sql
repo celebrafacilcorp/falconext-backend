@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Empresa" ALTER COLUMN "estado" SET DEFAULT 'INACTIVO';

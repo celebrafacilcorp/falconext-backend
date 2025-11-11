@@ -1,0 +1,13 @@
+-- CreateEnum
+CREATE TYPE "EstadoPago" AS ENUM ('PENDIENTE_PAGO', 'COMPLETADO', 'ANULADO');
+
+-- AlterTable
+ALTER TABLE "Comprobante" ADD COLUMN     "estadoPago" "EstadoPago",
+ALTER COLUMN "formaPagoTipo" DROP NOT NULL,
+ALTER COLUMN "formaPagoMoneda" DROP NOT NULL,
+ALTER COLUMN "mtoOperGravadas" DROP NOT NULL,
+ALTER COLUMN "mtoIGV" DROP NOT NULL,
+ALTER COLUMN "valorVenta" DROP NOT NULL,
+ALTER COLUMN "totalImpuestos" DROP NOT NULL,
+ALTER COLUMN "subTotal" DROP NOT NULL,
+ALTER COLUMN "mtoImpVenta" DROP NOT NULL;

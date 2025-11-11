@@ -1,0 +1,476 @@
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
+import { Prisma, EstadoType } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { KardexService } from '../kardex/kardex.service';
+import * as XLSX from 'xlsx';
+
+@Injectable()
+export class ProductoService {
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => KardexService))
+    private readonly kardexService: KardexService,
+  ) {}
+
+  private async generarCodigoProducto(empresaId: number, prefijo = 'PR') {
+    const productos = await this.prisma.producto.findMany({
+      where: { empresaId, codigo: { startsWith: prefijo } },
+      select: { codigo: true },
+    });
+    let maxNum = 0;
+    const re = new RegExp(`^${prefijo}(\\d+)$`);
+    for (const { codigo } of productos) {
+      const m = codigo.match(re);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    }
+    const siguiente = maxNum + 1;
+    return `${prefijo}${siguiente.toString().padStart(3, '0')}`;
+  }
+
+  async crear(
+    data: {
+      codigo?: string;
+      descripcion: string;
+      unidadMedidaId: number;
+      tipoAfectacionIGV: string;
+      precioUnitario: number;
+      igvPorcentaje?: number;
+      stock: number;
+      categoriaId?: number;
+      stockMinimo?: number;
+      stockMaximo?: number;
+    },
+    empresaId: number,
+  ) {
+    let {
+      codigo,
+      descripcion,
+      unidadMedidaId,
+      tipoAfectacionIGV,
+      precioUnitario,
+      igvPorcentaje = 18,
+      stock,
+      categoriaId,
+      stockMinimo,
+      stockMaximo,
+    } = data;
+
+    if (!codigo) {
+      codigo = await this.generarCodigoProducto(empresaId, 'PR');
+    }
+
+    const existe = await this.prisma.producto.findFirst({
+      where: { codigo, empresaId },
+    });
+    if (existe)
+      throw new ForbiddenException('Ya existe un producto con ese código');
+
+    const unidad = await this.prisma.unidadMedida.findUnique({
+      where: { id: unidadMedidaId },
+    });
+    if (!unidad) throw new ForbiddenException('Unidad de medida no válida');
+
+    const tiposValidos = ['10', '20', '30', '40'];
+    if (!tiposValidos.includes(tipoAfectacionIGV)) {
+      throw new ForbiddenException('Tipo de afectación IGV no válido');
+    }
+
+    const divisor = 1 + igvPorcentaje / 100;
+    const rawValor = precioUnitario / divisor;
+    const valorUnitario = parseFloat(rawValor.toFixed(2));
+
+    const nuevo = await this.prisma.producto.create({
+      data: {
+        codigo,
+        descripcion,
+        unidadMedidaId,
+        tipoAfectacionIGV,
+        precioUnitario: new Prisma.Decimal(precioUnitario),
+        valorUnitario: new Prisma.Decimal(valorUnitario),
+        igvPorcentaje: new Prisma.Decimal(igvPorcentaje),
+        stock,
+        stockMinimo: stockMinimo != null ? stockMinimo : undefined,
+        stockMaximo: stockMaximo != null ? stockMaximo : undefined,
+        categoriaId:
+          categoriaId && Number(categoriaId) > 0
+            ? Number(categoriaId)
+            : undefined,
+        empresaId,
+      },
+    });
+
+    return nuevo;
+  }
+
+  async listar(params: {
+    empresaId: number;
+    search?: string;
+    page?: number;
+    limit?: number;
+    sort?: 'id' | 'descripcion' | 'codigo';
+    order?: 'asc' | 'desc';
+  }) {
+    const {
+      empresaId,
+      search,
+      page = 1,
+      limit = 10,
+      sort = 'id',
+      order = 'desc',
+    } = params;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ProductoWhereInput = {
+      empresaId,
+      estado: { in: ['ACTIVO', 'INACTIVO'] },
+      OR: search
+        ? [
+            { descripcion: { contains: search, mode: 'insensitive' } },
+            { codigo: { contains: search, mode: 'insensitive' } },
+          ]
+        : undefined,
+    };
+
+    const [productos, total] = await Promise.all([
+      this.prisma.producto.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sort]: order },
+        select: {
+          id: true,
+          codigo: true,
+          descripcion: true,
+          stock: true,
+          stockMinimo: true,
+          stockMaximo: true,
+          costoPromedio: true,
+          precioUnitario: true,
+          valorUnitario: true,
+          igvPorcentaje: true,
+          tipoAfectacionIGV: true,
+          estado: true,
+          categoriaId: true,
+          unidadMedidaId: true,
+          empresaId: true,
+          creadoEn: true,
+          unidadMedida: {
+            select: {
+              id: true,
+              codigo: true,
+              nombre: true,
+            },
+          },
+          categoria: {
+            select: {
+              id: true,
+              nombre: true,
+            },
+          },
+        },
+      }),
+      this.prisma.producto.count({ where }),
+    ]);
+
+    return { productos, total, page, limit };
+  }
+
+  async obtenerPorId(id: number, empresaId: number) {
+    const producto = await this.prisma.producto.findFirst({
+      where: { id, empresaId },
+      include: { unidadMedida: true, categoria: true },
+    });
+    if (!producto) throw new NotFoundException('Producto no encontrado');
+    return producto;
+  }
+
+  async actualizar(data: {
+    id: number;
+    empresaId: number;
+    descripcion?: string;
+    categoriaId?: number | null;
+    unidadMedidaId?: number;
+    tipoAfectacionIGV?: string;
+    valorUnitario?: number;
+    igvPorcentaje?: number;
+    precioUnitario?: number;
+    stock?: number;
+    costoUnitario?: number;
+    stockMinimo?: number;
+    stockMaximo?: number;
+  }, usuarioId?: number) {
+    const producto = await this.prisma.producto.findFirst({
+      where: { id: data.id, empresaId: data.empresaId },
+    });
+    if (!producto) throw new NotFoundException('Producto no encontrado');
+
+    if (data.valorUnitario !== undefined && data.precioUnitario !== undefined) {
+      const igv = data.igvPorcentaje ?? 18;
+      const esperado = +(data.valorUnitario * (1 + igv / 100)).toFixed(2);
+      const enviado = +Number(data.precioUnitario).toFixed(2);
+      if (esperado !== enviado) {
+        throw new ForbiddenException(
+          `El precio con IGV no coincide (esperado: ${esperado})`,
+        );
+      }
+    }
+
+    // Si cambió el stock, registrar movimiento de kardex
+    if (data.stock !== undefined && data.stock !== producto.stock) {
+      const diferencia = data.stock - producto.stock;
+      const esIngreso = diferencia > 0;
+      const cantidad = Math.abs(diferencia);
+      
+      try {
+        await this.kardexService.registrarMovimiento({
+          productoId: data.id,
+          empresaId: data.empresaId,
+          tipoMovimiento: esIngreso ? 'INGRESO' : 'SALIDA',
+          concepto: `Ajuste manual de stock desde inventario (${esIngreso ? '+' : '-'}${cantidad})`,
+          cantidad,
+          costoUnitario: Number(producto.costoPromedio) || 0,
+          usuarioId,
+          observacion: `Stock anterior: ${producto.stock}, Stock nuevo: ${data.stock}`,
+        });
+      } catch (error) {
+        console.error('Error al registrar movimiento de kardex desde edición de producto:', error);
+        // No fallar la actualización del producto por error en kardex
+      }
+    }
+
+    return this.prisma.producto.update({
+      where: { id: data.id },
+      data: {
+        descripcion: data.descripcion,
+        categoriaId: data.categoriaId,
+        unidadMedidaId: data.unidadMedidaId,
+        tipoAfectacionIGV: data.tipoAfectacionIGV,
+        valorUnitario:
+          data.valorUnitario !== undefined
+            ? new Prisma.Decimal(data.valorUnitario)
+            : undefined,
+        igvPorcentaje:
+          data.igvPorcentaje !== undefined
+            ? new Prisma.Decimal(data.igvPorcentaje)
+            : undefined,
+        precioUnitario:
+          data.precioUnitario !== undefined
+            ? new Prisma.Decimal(data.precioUnitario)
+            : undefined,
+        costoPromedio:
+          data.costoUnitario !== undefined
+            ? new Prisma.Decimal(data.costoUnitario)
+            : undefined,
+        stock: data.stock,
+        stockMinimo:
+          data.stockMinimo !== undefined ? data.stockMinimo : undefined,
+        stockMaximo:
+          data.stockMaximo !== undefined ? data.stockMaximo : undefined,
+      },
+    });
+  }
+
+  async cambiarEstado(id: number, empresaId: number, estado: EstadoType) {
+    const producto = await this.prisma.producto.findFirst({
+      where: { id, empresaId },
+    });
+    if (!producto) throw new NotFoundException('Producto no encontrado');
+    return this.prisma.producto.update({ where: { id }, data: { estado } });
+  }
+
+  async obtenerSiguienteCodigo(empresaId: number, prefijo = 'PR') {
+    return this.generarCodigoProducto(empresaId, prefijo);
+  }
+
+  async exportar(empresaId: number, search?: string): Promise<Buffer> {
+    const where: Prisma.ProductoWhereInput = {
+      empresaId,
+      estado: { in: ['ACTIVO', 'INACTIVO'] },
+      OR: search
+        ? [
+            { descripcion: { contains: search, mode: 'insensitive' } },
+            { codigo: { contains: search, mode: 'insensitive' } },
+          ]
+        : undefined,
+    };
+
+    const productos = await this.prisma.producto.findMany({
+      where,
+      orderBy: { id: 'desc' },
+      include: { unidadMedida: true, categoria: true },
+    });
+
+    const datosExcel = productos.map((producto) => ({
+      CÓDIGO: producto.codigo,
+      PRODUCTO: producto.descripcion,
+      'U.M': producto.unidadMedida?.nombre || '',
+      AFECT: producto.tipoAfectacionIGV,
+      'PRECIO UNITARIO': Number(producto.precioUnitario),
+      IGV: Number(producto.igvPorcentaje),
+      STOCK: producto.stock,
+      CATEGORIA: producto.categoria?.nombre || '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(datosExcel);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Productos');
+    worksheet['!cols'] = [
+      { wch: 15 },
+      { wch: 100 },
+      { wch: 20 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 20 },
+    ];
+
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+    return buffer;
+  }
+
+  async cargaMasiva(fileBuffer: Buffer, empresaId: number) {
+    const unidades = await this.prisma.unidadMedida.findMany({
+      select: { id: true, nombre: true },
+    });
+    const unidadMap = new Map(
+      unidades.map((u) => [
+        u.nombre
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, ''),
+        u.id,
+      ]),
+    );
+
+    const categorias = await this.prisma.categoria.findMany({
+      select: { id: true, nombre: true },
+    });
+    const categoriaMap = new Map(
+      categorias.map((c) => [
+        c.nombre
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, ''),
+        c.id,
+      ]),
+    );
+
+    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
+    if (rows.length === 0)
+      throw new ForbiddenException('El archivo Excel está vacío');
+
+    const resultados: { producto?: any; error?: string }[] = [];
+    const tiposValidos = ['10', '20', '30', '40'];
+
+    for (const [index, row] of rows.entries()) {
+      try {
+        const codigo = row['CÓDIGO'] ?? row['Código'] ?? row['codigo'] ?? null;
+        const descripcion =
+          row['PRODUCTO'] ?? row['Producto'] ?? row['producto'] ?? null;
+        const unidadNombre =
+          row['U.M'] ??
+          row['U.M.'] ??
+          row['Unidad de Medida'] ??
+          row['unidadMedida'] ??
+          null;
+        const afectRaw = row['AFECT'] ?? row['Afect'] ?? row['afect'] ?? null;
+        const precioUnitarioRaw =
+          row['PRECIO UNITARIO'] ??
+          row['Precio Unitario'] ??
+          row['precioUnitario'] ??
+          null;
+        const igvRaw = row['IGV'] ?? row['igv'] ?? null;
+        const stockRaw = row['STOCK'] ?? row['Stock'] ?? row['stock'] ?? null;
+        const categoriaRaw =
+          row['CATEGORIA'] ?? row['Categoría'] ?? row['categoria'] ?? null;
+
+        if (!codigo)
+          throw new ForbiddenException(
+            `Código no proporcionado en la fila ${index + 1}`,
+          );
+        if (!descripcion)
+          throw new ForbiddenException(
+            `Descripción no proporcionada en la fila ${index + 1}`,
+          );
+        if (!unidadNombre)
+          throw new ForbiddenException(
+            `Unidad de medida no proporcionada en la fila ${index + 1}`,
+          );
+
+        const unidadKey = unidadNombre
+          .toString()
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+        const unidadMedidaId = unidadMap.get(unidadKey);
+        if (!unidadMedidaId)
+          throw new ForbiddenException(
+            `Unidad de medida no válida (${unidadNombre}) en la fila ${index + 1}`,
+          );
+
+        let tipoAfectacionIGV = afectRaw ? afectRaw.toString().trim() : '10';
+        if (!tiposValidos.includes(tipoAfectacionIGV)) {
+          const n = parseInt(tipoAfectacionIGV, 10);
+          tipoAfectacionIGV = tiposValidos.includes(n.toString())
+            ? n.toString()
+            : '10';
+        }
+
+        const precioUnitario = parseFloat(precioUnitarioRaw?.toString());
+        const stock = parseInt(stockRaw?.toString(), 10);
+        const igvPorcentaje = igvRaw ? parseFloat(igvRaw.toString()) : 18;
+
+        const categoriaKey = categoriaRaw
+          ? categoriaRaw
+              .toString()
+              .toUpperCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+          : null;
+        const categoriaId = categoriaKey
+          ? categoriaMap.get(categoriaKey)
+          : undefined;
+        if (categoriaKey && !categoriaId)
+          throw new ForbiddenException(
+            `Categoría no válida (${categoriaRaw}) en la fila ${index + 1}`,
+          );
+
+        const producto = await this.crear(
+          {
+            codigo: codigo.toString(),
+            descripcion: descripcion.toString(),
+            unidadMedidaId,
+            tipoAfectacionIGV,
+            precioUnitario,
+            igvPorcentaje,
+            stock,
+            categoriaId,
+          },
+          empresaId,
+        );
+        resultados.push({ producto });
+      } catch (e: any) {
+        resultados.push({ error: e?.message || 'Error desconocido' });
+      }
+    }
+
+    return {
+      total: rows.length,
+      exitosos: resultados.filter((r) => r.producto).length,
+      fallidos: resultados.filter((r) => r.error).length,
+      detalles: resultados,
+    };
+  }
+}

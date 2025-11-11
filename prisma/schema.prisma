@@ -1,0 +1,462 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Plan {
+  id              Int       @id @default(autoincrement())
+  nombre          String    @unique
+  descripcion     String?
+  limiteUsuarios  Int?
+  costo           Decimal   @default(0)
+  esPrueba        Boolean   @default(false)
+  duracionDias    Int       @default(30)
+  tipoFacturacion String    @default("MENSUAL")
+  empresas        Empresa[]
+}
+
+model Ubigeo {
+  codigo       String    @id
+  departamento String
+  provincia    String
+  distrito     String
+  empresas     Empresa[]
+}
+
+model Rubro {
+  id       Int       @id @default(autoincrement())
+  nombre   String    @unique
+  empresas Empresa[]
+}
+
+model Empresa {
+  id                Int                @id @default(autoincrement())
+  ruc               String             @unique
+  razonSocial       String
+  direccion         String
+  logo              String?
+  fechaActivacion   DateTime
+  fechaExpiracion   DateTime
+  planId            Int
+  estado            EstadoType         @default(ACTIVO)
+  departamento      String?
+  distrito          String?
+  provincia         String?
+  ubigeo            String?
+  providerToken     String?
+  tokenCreatedAt    DateTime?
+  tokenUpdatedAt    DateTime?
+  empresaUbigeo     String?
+  nombreComercial   String?
+  rubroId           Int?
+  providerId        String?
+  tipoEmpresa       TipoEmpresa        @default(FORMAL)
+  categorias        Categoria[]
+  clientes          Cliente[]
+  comprobantes      Comprobante[]
+  ubicacion         Ubigeo?            @relation(fields: [empresaUbigeo], references: [codigo])
+  plan              Plan               @relation(fields: [planId], references: [id])
+  rubro             Rubro?             @relation(fields: [rubroId], references: [id])
+  movimientosCaja   MovimientoCaja[]
+  movimientosKardex MovimientoKardex[]
+  pagos             Pago[]
+  productos         Producto[]
+  usuarios          Usuario[]
+  Notificacion      Notificacion[]
+  whatsappEnvios    WhatsAppEnvio[]
+
+  @@index([providerToken])
+}
+
+model Usuario {
+  id                Int                @id @default(autoincrement())
+  nombre            String
+  dni               String
+  celular           String
+  email             String             @unique
+  password          String
+  rol               Rol
+  empresaId         Int?
+  estado            EstadoType         @default(ACTIVO)
+  telefono          String?
+  permisos          String?
+  comprobantes      Comprobante[]
+  movimientosCaja   MovimientoCaja[]
+  movimientosKardex MovimientoKardex[]
+  pagos             Pago[]
+  refreshTokens     RefreshToken[]
+  empresa           Empresa?           @relation(fields: [empresaId], references: [id])
+  Notificacion      Notificacion[]
+  whatsappEnvios    WhatsAppEnvio[]
+}
+
+model Categoria {
+  id        Int        @id @default(autoincrement())
+  nombre    String
+  empresaId Int?
+  empresa   Empresa?   @relation(fields: [empresaId], references: [id])
+  productos Producto[]
+}
+
+model UnidadMedida {
+  id        Int        @id @default(autoincrement())
+  codigo    String     @unique
+  nombre    String
+  productos Producto[]
+}
+
+model Producto {
+  id                  Int                  @id @default(autoincrement())
+  codigo              String
+  descripcion         String
+  categoriaId         Int?
+  unidadMedidaId      Int
+  tipoAfectacionIGV   String
+  precioUnitario      Decimal
+  valorUnitario       Decimal
+  igvPorcentaje       Decimal              @default(18.00)
+  stock               Int
+  estado              EstadoType           @default(ACTIVO)
+  creadoEn            DateTime             @default(now())
+  empresaId           Int?
+  costoPromedio       Decimal?             @default(0)
+  stockMaximo         Int?
+  stockMinimo         Int?                 @default(0)
+  detalleComprobantes DetalleComprobante[]
+  movimientosKardex   MovimientoKardex[]
+  categoria           Categoria?           @relation(fields: [categoriaId], references: [id])
+  empresa             Empresa?             @relation(fields: [empresaId], references: [id])
+  unidadMedida        UnidadMedida         @relation(fields: [unidadMedidaId], references: [id])
+
+  @@unique([empresaId, codigo])
+}
+
+model TipoDocumento {
+  id          Int       @id @default(autoincrement())
+  codigo      String    @unique
+  descripcion String
+  clientes    Cliente[]
+}
+
+model Cliente {
+  id              Int            @id @default(autoincrement())
+  nombre          String
+  nroDoc          String
+  direccion       String?
+  email           String?
+  telefono        String?
+  empresaId       Int?
+  estado          EstadoType     @default(ACTIVO)
+  tipoDocumentoId Int?
+  departamento    String?
+  distrito        String?
+  provincia       String?
+  ubigeo          String?
+  persona         PersonaType    @default(CLIENTE)
+  empresa         Empresa?       @relation(fields: [empresaId], references: [id])
+  tipoDocumento   TipoDocumento? @relation(fields: [tipoDocumentoId], references: [id])
+  comprobantes    Comprobante[]
+}
+
+model TipoOperacion {
+  id           Int           @id @default(autoincrement())
+  codigo       String        @unique
+  descripcion  String
+  comprobantes Comprobante[]
+}
+
+model MotivoNota {
+  id           Int           @id @default(autoincrement())
+  tipo         TipoNota
+  codigo       String
+  descripcion  String
+  comprobantes Comprobante[] @relation("ComprobanteMotivo")
+
+  @@unique([tipo, codigo])
+}
+
+model Comprobante {
+  id                 Int                  @id @default(autoincrement())
+  ublVersion         String               @default("2.1")
+  tipoDoc            String
+  serie              String
+  correlativo        Int
+  fechaEmision       DateTime             @db.Timestamp(6)
+  formaPagoTipo      String
+  formaPagoMoneda    String
+  tipoMoneda         String
+  observaciones      String?
+  mtoOperGravadas    Float
+  mtoIGV             Float
+  valorVenta         Float
+  totalImpuestos     Float
+  subTotal           Float
+  mtoImpVenta        Float
+  estadoEnvioSunat   EstadoSunat          @default(PENDIENTE)
+  medioPago          String?
+  clienteId          Int
+  empresaId          Int
+  tipDocAfectado     String?
+  numDocAfectado     String?
+  creadoEn           DateTime             @default(now())
+  tipoOperacionId    Int?
+  motivoId           Int?
+  mtoOperInafectas   Float                @default(0)
+  mtoDescuentoGlobal Float                @default(0)
+  sunatCdrResponse   Json?
+  sunatCdrZip        String?
+  sunatErrorMsg      String?
+  sunatXml           String?
+  documentoId        String?
+  adelanto           Float?
+  fechaRecojo        DateTime?
+  saldo              Float?               @default(0)
+  estadoPago         EstadoPago?          @default(PENDIENTE_PAGO)
+  descuentoOT        Float?               @default(0)
+  descuentoPorcOT    Float?               @default(0)
+  estadoOT           String?
+  usuarioId          Int?
+  s3PdfUrl           String?
+  s3XmlUrl           String?
+  s3CdrUrl           String?
+  cliente            Cliente              @relation(fields: [clienteId], references: [id])
+  empresa            Empresa              @relation(fields: [empresaId], references: [id])
+  motivo             MotivoNota?          @relation("ComprobanteMotivo", fields: [motivoId], references: [id])
+  tipoOperacion      TipoOperacion?       @relation(fields: [tipoOperacionId], references: [id])
+  usuario            Usuario?             @relation(fields: [usuarioId], references: [id])
+  detalles           DetalleComprobante[]
+  leyendas           Leyenda[]
+  movimientosKardex  MovimientoKardex[]
+  pagos              Pago[]
+  whatsappEnvios     WhatsAppEnvio[]
+}
+
+model DetalleComprobante {
+  id                Int         @id @default(autoincrement())
+  comprobanteId     Int
+  productoId        Int?
+  unidad            String
+  descripcion       String
+  cantidad          Float
+  mtoValorUnitario  Float
+  mtoValorVenta     Float
+  mtoBaseIgv        Float
+  porcentajeIgv     Float
+  igv               Float
+  tipAfeIgv         Int
+  totalImpuestos    Float
+  mtoPrecioUnitario Float
+  comprobante       Comprobante @relation(fields: [comprobanteId], references: [id])
+  producto          Producto?   @relation(fields: [productoId], references: [id])
+}
+
+model Leyenda {
+  id            Int         @id @default(autoincrement())
+  comprobanteId Int
+  code          String
+  value         String
+  comprobante   Comprobante @relation(fields: [comprobanteId], references: [id])
+}
+
+model Pago {
+  id            Int         @id @default(autoincrement())
+  comprobanteId Int
+  fecha         DateTime    @default(now())
+  monto         Float
+  medioPago     String
+  observacion   String?
+  referencia    String?
+  creadoEn      DateTime    @default(now())
+  empresaId     Int?
+  usuarioId     Int?
+  comprobante   Comprobante @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+  empresa       Empresa?    @relation(fields: [empresaId], references: [id])
+  usuario       Usuario?    @relation(fields: [usuarioId], references: [id])
+
+  @@index([comprobanteId])
+  @@index([usuarioId])
+  @@index([empresaId])
+}
+
+model MovimientoKardex {
+  id               Int            @id @default(autoincrement())
+  productoId       Int
+  empresaId        Int
+  tipoMovimiento   TipoMovimiento
+  concepto         String
+  comprobanteId    Int?
+  cantidad         Int
+  stockAnterior    Int
+  stockActual      Int
+  costoUnitario    Decimal?
+  valorTotal       Decimal?
+  fecha            DateTime       @default(now())
+  usuarioId        Int?
+  observacion      String?
+  lote             String?
+  fechaVencimiento DateTime?
+  comprobante      Comprobante?   @relation(fields: [comprobanteId], references: [id])
+  empresa          Empresa        @relation(fields: [empresaId], references: [id])
+  producto         Producto       @relation(fields: [productoId], references: [id])
+  usuario          Usuario?       @relation(fields: [usuarioId], references: [id])
+
+  @@index([productoId, fecha])
+  @@index([empresaId, fecha])
+  @@index([tipoMovimiento])
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  usuarioId Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id])
+}
+
+model MovimientoCaja {
+  id                 Int        @id @default(autoincrement())
+  usuarioId          Int
+  empresaId          Int
+  tipoMovimiento     TipoCaja
+  fecha              DateTime   @default(now())
+  montoInicial       Decimal?
+  montoFinal         Decimal?
+  montoEfectivo      Decimal?   @default(0)
+  montoYape          Decimal?   @default(0)
+  montoPlin          Decimal?   @default(0)
+  montoTransferencia Decimal?   @default(0)
+  montoTarjeta       Decimal?   @default(0)
+  observaciones      String?
+  estado             EstadoType @default(ACTIVO)
+  fechaCierre        DateTime?
+  totalVentas        Decimal?   @default(0)
+  totalIngresos      Decimal?   @default(0)
+  diferencia         Decimal?   @default(0)
+  turno              String?
+  empresa            Empresa    @relation(fields: [empresaId], references: [id])
+  usuario            Usuario    @relation(fields: [usuarioId], references: [id])
+
+  @@index([usuarioId, fecha])
+  @@index([empresaId, fecha])
+  @@index([tipoMovimiento])
+}
+
+enum EstadoType {
+  ACTIVO
+  INACTIVO
+  PLACEHOLDER
+}
+
+enum TipoNota {
+  CREDITO
+  DEBITO
+}
+
+enum Rol {
+  ADMIN_SISTEMA
+  ADMIN_EMPRESA
+  USUARIO_EMPRESA
+}
+
+enum PersonaType {
+  CLIENTE
+  CLIENTE_PROVEEDOR
+  PROVEEDOR
+}
+
+enum EstadoSunat {
+  PENDIENTE
+  ENVIADO
+  EMITIDO
+  RECHAZADO
+  ANULADO
+  REGISTRADO
+  NO_APLICA
+}
+
+enum EstadoPago {
+  PENDIENTE_PAGO
+  COMPLETADO
+  ANULADO
+  PAGO_PARCIAL
+}
+
+enum TipoEmpresa {
+  FORMAL
+  INFORMAL
+}
+
+enum TipoMovimiento {
+  INGRESO
+  SALIDA
+  AJUSTE
+  TRANSFERENCIA
+}
+
+enum MetodoCosteo {
+  FIFO
+  LIFO
+  PROMEDIO_PONDERADO
+}
+
+enum TipoCaja {
+  APERTURA
+  CIERRE
+  INGRESO
+  EGRESO
+}
+
+model Notificacion {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int
+  empresaId Int?
+  tipo      String // INFO, WARNING, CRITICAL
+  titulo    String
+  mensaje   String
+  leida     Boolean  @default(false)
+  creadoEn  DateTime @default(now())
+
+  usuario Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  empresa Empresa? @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, leida])
+  @@index([empresaId])
+}
+
+model WhatsAppEnvio {
+  id             Int      @id @default(autoincrement())
+  comprobanteId  Int
+  empresaId      Int
+  usuarioId      Int
+  numeroDestino  String
+  estado         EstadoWhatsApp @default(PENDIENTE)
+  mensajeId      String?  // SID de Twilio
+  error          String?
+  costoUSD       Decimal  @default(0) @db.Decimal(10, 4)
+  incluyeXML     Boolean  @default(false)
+  creadoEn       DateTime @default(now())
+  actualizadoEn  DateTime @updatedAt
+
+  comprobante Comprobante @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+  empresa     Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([comprobanteId])
+  @@index([empresaId])
+  @@index([estado])
+  @@index([creadoEn])
+}
+
+enum EstadoWhatsApp {
+  PENDIENTE
+  ENVIADO
+  ENTREGADO
+  LEIDO
+  FALLIDO
+}

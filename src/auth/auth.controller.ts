@@ -1,0 +1,50 @@
+import { Body, Controller, Get, Post, Res, UseGuards } from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import type { Response } from 'express';
+import { User } from '../common/decorators/user.decorator';
+
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Post('login')
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(dto);
+    res.locals.message = 'Inicio de sesión exitoso';
+    return result;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async me(@User() user: any) {
+    const usuario = await this.authService.obtenerUsuarioActual(
+      user.id ?? user.sub,
+    );
+    return usuario;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('perfil')
+  async perfil(@User() user: any) {
+    const perfil = await this.authService.obtenerPerfilCompleto(
+      user.id ?? user.sub,
+    );
+    return perfil;
+  }
+
+  @Post('refresh')
+  async refresh(
+    @Body() dto: RefreshDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokens = await this.authService.refresh(dto.refreshToken);
+    res.locals.message = 'Refresh exitoso';
+    return tokens;
+  }
+}
