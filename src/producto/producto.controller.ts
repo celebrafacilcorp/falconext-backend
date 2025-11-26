@@ -13,6 +13,7 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  Delete,
 } from '@nestjs/common';
 import { ProductoService } from './producto.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -24,6 +25,7 @@ import { CreateProductoDto } from './dto/create-producto.dto';
 import { ListProductoDto } from './dto/list-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { imageUploadOptions } from '../common/utils/multer.config';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('producto')
@@ -42,6 +44,30 @@ export class ProductoController {
     return producto;
   }
 
+  // ==================== IMÁGENES (S3) ====================
+
+  @Post(':id/imagen')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @UseInterceptors(FileInterceptor('file', imageUploadOptions))
+  async subirImagenPrincipal(
+    @Param('id', ParseIntPipe) id: number,
+    @User() user: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.service.subirImagenPrincipal(user.empresaId, id, { buffer: file?.buffer, mimetype: file?.mimetype });
+  }
+
+  @Post(':id/imagen-extra')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @UseInterceptors(FileInterceptor('file', imageUploadOptions))
+  async subirImagenExtra(
+    @Param('id', ParseIntPipe) id: number,
+    @User() user: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.service.subirImagenExtra(user.empresaId, id, { buffer: file?.buffer, mimetype: file?.mimetype });
+  }
+
   @Get('listar')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   async listar(
@@ -56,9 +82,23 @@ export class ProductoController {
       limit: query.limit,
       sort: query.sort,
       order: query.order,
+      marcaId: (query as any).marcaId,
     });
     res.locals.message = 'Productos listados correctamente';
     return resultado;
+  }
+
+  // Eliminar (lógico) un producto
+  @Delete(':id')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  async eliminarProducto(
+    @Param('id', ParseIntPipe) id: number,
+    @User() user: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const eliminado = await this.service.eliminar(id, user.empresaId);
+    res.locals.message = 'Producto eliminado correctamente';
+    return eliminado;
   }
 
   @Get(':id')
@@ -187,6 +227,7 @@ export class ProductoController {
       limit: query.limit,
       sort: query.sort,
       order: query.order,
+      marcaId: (query as any).marcaId,
     });
     res.locals.message = 'Productos listados correctamente';
     return resultado;

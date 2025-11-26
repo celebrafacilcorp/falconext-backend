@@ -28,4 +28,10 @@ export class ListProductoDto {
   @IsString()
   @IsIn(['asc', 'desc'])
   order?: 'asc' | 'desc' = 'desc';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  marcaId?: number;
 }

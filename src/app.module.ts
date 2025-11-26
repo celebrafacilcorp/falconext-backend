@@ -21,6 +21,11 @@ import { CajaModule } from './caja/caja.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { S3Module } from './s3/s3.module';
+import { SyncModule } from './sync/sync.module';
+import { TiendaModule } from './tienda/tienda.module';
+import { PreferenciasModule } from './preferencias/preferencias.module';
+import { MarcaModule } from './marca/marca.module';
+import { DisenoRubroModule } from './diseno-rubro/diseno-rubro.module';
 
 @Module({
   imports: [
@@ -44,8 +49,13 @@ import { S3Module } from './s3/s3.module';
     NotificacionesModule,
     WhatsAppModule,
     S3Module,
+    SyncModule,
+    TiendaModule,
+    PreferenciasModule,
+    MarcaModule,
+    DisenoRubroModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

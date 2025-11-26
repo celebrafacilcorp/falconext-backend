@@ -100,6 +100,7 @@ export class ExtensionesController {
         descripcion: true,
         limiteUsuarios: true,
         costo: true,
+        tieneTienda: true,
       },
     });
     return planes;

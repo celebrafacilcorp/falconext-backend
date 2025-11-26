@@ -16,6 +16,14 @@ model Plan {
   esPrueba        Boolean   @default(false)
   duracionDias    Int       @default(30)
   tipoFacturacion String    @default("MENSUAL")
+  tieneTienda     Boolean   @default(false) // Indica si el plan incluye tienda virtual
+  // Features premium
+  tieneBanners       Boolean @default(false) // Slider de banners en tienda
+  tieneGaleria       Boolean @default(false) // Múltiples imágenes por producto
+  tieneCulqi         Boolean @default(false) // Integración de pago con Culqi
+  tieneDeliveryGPS   Boolean @default(false) // Delivery en tiempo real con GPS
+  maxBanners         Int?    @default(3)     // Máximo de banners activos
+  maxImagenesProducto Int?   @default(1)     // Máximo de imágenes por producto
   empresas        Empresa[]
 }
 
@@ -31,6 +39,7 @@ model Rubro {
   id       Int       @id @default(autoincrement())
   nombre   String    @unique
   empresas Empresa[]
+  disenos  DisenoRubro[]
 }
 
 model Empresa {
@@ -55,6 +64,30 @@ model Empresa {
   rubroId           Int?
   providerId        String?
   tipoEmpresa       TipoEmpresa        @default(FORMAL)
+  // Nuevos campos para tienda virtual
+  slugTienda        String?            @unique // URL amigable para la tienda (ej: "mi-negocio")
+  descripcionTienda String?            // Descripción corta del negocio
+  whatsappTienda    String?            // WhatsApp de contacto
+  facebookUrl       String?            // URL de Facebook
+  instagramUrl      String?            // URL de Instagram
+  tiktokUrl         String?            // URL de TikTok
+  horarioAtencion   String?            // Horario (texto libre o JSON)
+  colorPrimario     String?            @default("#000000") // Color principal de la tienda
+  colorSecundario   String?            @default("#ffffff") // Color secundario
+  yapeQrUrl         String?            // URL de imagen QR Yape
+  yapeNumero        String?            // Número de Yape
+  plinQrUrl         String?            // URL de imagen QR Plin
+  plinNumero        String?            // Número de Plin
+  aceptaEfectivo    Boolean            @default(true) // Si acepta pago en efectivo
+  // Configuración de envío/recojo
+  costoEnvioFijo    Decimal?           @default(0) // Costo fijo de envío
+  aceptaRecojo      Boolean            @default(true) // Si acepta recojo en tienda
+  aceptaEnvio       Boolean            @default(true) // Si acepta envío a domicilio
+  direccionRecojo   String?            // Dirección donde recoger pedidos
+  tiempoPreparacionMin Int?            @default(30) // Tiempo estimado de preparación en minutos
+  // Override de diseño (opcional, si null usa el diseño del rubro)
+  disenoOverride    Json?              // Configuración personalizada de diseño
+  // Relaciones existentes
   categorias        Categoria[]
   clientes          Cliente[]
   comprobantes      Comprobante[]
@@ -66,10 +99,15 @@ model Empresa {
   pagos             Pago[]
   productos         Producto[]
   usuarios          Usuario[]
+  marcas            Marca[]
   Notificacion      Notificacion[]
   whatsappEnvios    WhatsAppEnvio[]
+  pedidosTienda     PedidoTienda[]     // Nueva relación
+  banners           Banner[]
+  preferenciasTabla PreferenciaTabla[]
 
   @@index([providerToken])
+  @@index([slugTienda])
 }
 
 model Usuario {
@@ -92,6 +130,8 @@ model Usuario {
   empresa           Empresa?           @relation(fields: [empresaId], references: [id])
   Notificacion      Notificacion[]
   whatsappEnvios    WhatsAppEnvio[]
+  historialEstadosPedido HistorialEstadoPedido[]
+  preferenciasTabla PreferenciaTabla[]
 }
 
 model Categoria {
@@ -109,11 +149,22 @@ model UnidadMedida {
   productos Producto[]
 }
 
+model Marca {
+  id        Int        @id @default(autoincrement())
+  nombre    String
+  empresaId Int?
+  empresa   Empresa?   @relation(fields: [empresaId], references: [id])
+  productos Producto[]
+
+  @@unique([empresaId, nombre])
+}
+
 model Producto {
   id                  Int                  @id @default(autoincrement())
   codigo              String
   descripcion         String
   categoriaId         Int?
+  marcaId             Int?
   unidadMedidaId      Int
   tipoAfectacionIGV   String
   precioUnitario      Decimal
@@ -126,13 +177,28 @@ model Producto {
   costoPromedio       Decimal?             @default(0)
   stockMaximo         Int?
   stockMinimo         Int?                 @default(0)
+  // Nuevos campos para tienda virtual
+  publicarEnTienda    Boolean              @default(false) // Si se muestra en la tienda pública
+  imagenUrl           String?              // URL de imagen principal del producto
+  imagenesExtra       String?              // JSON con URLs de imágenes adicionales
+  descripcionLarga    String?              // Descripción detallada para la tienda
+  destacado           Boolean              @default(false) // Para productos destacados en la tienda
+  // Rating de clientes
+  ratingAvg           Decimal?             @default(0) // Promedio de calificaciones (1-5)
+  ratingCount         Int?                 @default(0) // Cantidad de calificaciones
+  // Relaciones
   detalleComprobantes DetalleComprobante[]
   movimientosKardex   MovimientoKardex[]
   categoria           Categoria?           @relation(fields: [categoriaId], references: [id])
+  marca               Marca?               @relation(fields: [marcaId], references: [id])
   empresa             Empresa?             @relation(fields: [empresaId], references: [id])
   unidadMedida        UnidadMedida         @relation(fields: [unidadMedidaId], references: [id])
+  itemsPedido         ItemPedidoTienda[]
+  galeria             GaleriaProducto[]    // Galería de imágenes (feature premium)
 
   @@unique([empresaId, codigo])
+  @@index([empresaId, publicarEnTienda])
+  @@index([marcaId])
 }
 
 model TipoDocumento {
@@ -347,6 +413,81 @@ model MovimientoCaja {
   @@index([tipoMovimiento])
 }
 
+// Modelos para tienda virtual
+model PedidoTienda {
+  id                Int                @id @default(autoincrement())
+  empresaId         Int
+  // Datos del cliente (no requiere cuenta)
+  clienteNombre     String
+  clienteTelefono   String
+  clienteEmail      String?
+  clienteDireccion  String?
+  clienteReferencia String?            // Referencia de ubicación
+  // Datos del pedido
+  tipoEntrega       TipoEntrega        @default(RECOJO) // Tipo de entrega
+  costoEnvio        Decimal            @default(0) // Costo de envío
+  codigoSeguimiento String             @unique // Código único para tracking
+  notasInternas     String?            // Notas del negocio (no visibles para cliente)
+  subtotal          Decimal
+  igv               Decimal            @default(0)
+  total             Decimal
+  estado            EstadoPedidoTienda @default(PENDIENTE)
+  medioPago         MedioPagoTienda    @default(YAPE)
+  observaciones     String?            // Observaciones del cliente
+  referenciaTransf  String?            // Número desde el que pagó o código de operación
+  // Metadata
+  creadoEn          DateTime           @default(now())
+  actualizadoEn     DateTime           @updatedAt
+  fechaConfirmacion DateTime?          // Cuando el negocio confirma el pago
+  usuarioConfirma   Int?               // Usuario que confirmó el pedido
+  comprobanteId     Int?               // Si se generó comprobante desde este pedido
+  // Relaciones
+  empresa           Empresa            @relation(fields: [empresaId], references: [id])
+  items             ItemPedidoTienda[]
+  historialEstados  HistorialEstadoPedido[]
+
+  @@index([empresaId, estado])
+  @@index([creadoEn])
+  @@index([codigoSeguimiento])
+}
+
+model ItemPedidoTienda {
+  id           Int          @id @default(autoincrement())
+  pedidoId     Int
+  productoId   Int
+  cantidad     Int
+  precioUnit   Decimal      // Precio unitario al momento del pedido
+  subtotal     Decimal      // cantidad * precioUnit
+  observacion  String?      // Ej: "sin cebolla", "tamaño grande", etc.
+  pedido       PedidoTienda @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  producto     Producto     @relation(fields: [productoId], references: [id])
+
+  @@index([pedidoId])
+  @@index([productoId])
+}
+
+enum EstadoPedidoTienda {
+  PENDIENTE       // Pedido recibido, esperando confirmación de pago
+  CONFIRMADO      // Pago verificado por el negocio
+  EN_PREPARACION  // Pedido en proceso
+  LISTO           // Listo para entrega/recojo
+  ENTREGADO       // Completado
+  CANCELADO       // Cancelado por el negocio o cliente
+}
+
+enum MedioPagoTienda {
+  YAPE
+  PLIN
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA
+}
+
+enum TipoEntrega {
+  RECOJO
+  ENVIO
+}
+
 enum EstadoType {
   ACTIVO
   INACTIVO
@@ -412,6 +553,22 @@ enum TipoCaja {
   EGRESO
 }
 
+model HistorialEstadoPedido {
+  id        Int                @id @default(autoincrement())
+  pedidoId  Int
+  estadoAnterior EstadoPedidoTienda?
+  estadoNuevo    EstadoPedidoTienda
+  usuarioId Int?
+  notas     String?
+  creadoEn  DateTime           @default(now())
+
+  pedido    PedidoTienda       @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  usuario   Usuario?           @relation(fields: [usuarioId], references: [id])
+
+  @@index([pedidoId])
+  @@index([creadoEn])
+}
+
 model Notificacion {
   id        Int      @id @default(autoincrement())
   usuarioId Int
@@ -451,6 +608,79 @@ model WhatsAppEnvio {
   @@index([empresaId])
   @@index([estado])
   @@index([creadoEn])
+}
+
+// Diseño personalizado por rubro para tiendas virtuales
+model DisenoRubro {
+  id              Int      @id @default(autoincrement())
+  rubroId         Int      @unique
+  colorPrimario   String   @default("#6A6CFF")
+  colorSecundario String   @default("#ffffff")
+  colorAccento    String   @default("#FF6B6B")
+  tipografia      String   @default("Inter")
+  espaciado       String   @default("normal")    // compact, normal, spacious
+  bordeRadius     String   @default("medium")    // none, small, medium, large
+  estiloBoton     String   @default("rounded")   // rounded, square, pill
+  plantillaId     String   @default("moderna")   // moderna, clasica, minimalista
+  vistaProductos  String   @default("cards")     // cards, tabla, lista
+  // Configuración de tiempo de entrega por rubro
+  tiempoEntregaMin Int?     @default(15)         // Tiempo mínimo de entrega en minutos
+  tiempoEntregaMax Int?     @default(25)         // Tiempo máximo de entrega en minutos
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+
+  rubro Rubro @relation(fields: [rubroId], references: [id], onDelete: Cascade)
+
+  @@index([rubroId])
+}
+
+// Banners para slider en tienda virtual (feature premium)
+model Banner {
+  id         Int      @id @default(autoincrement())
+  empresaId  Int
+  titulo     String?
+  subtitulo  String?
+  imagenUrl  String
+  linkUrl    String?
+  orden      Int      @default(0)
+  activo     Boolean  @default(true)
+  creadoEn   DateTime @default(now())
+  
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  
+  @@index([empresaId, activo, orden])
+}
+
+// Galería de imágenes para productos (feature premium)
+model GaleriaProducto {
+  id          Int      @id @default(autoincrement())
+  productoId  Int
+  imagenUrl   String
+  orden       Int      @default(0)
+  esPrincipal Boolean  @default(false)
+  creadoEn    DateTime @default(now())
+  
+  producto Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  
+  @@index([productoId])
+  @@index([productoId, esPrincipal])
+}
+
+// Preferencias de tabla por usuario y empresa (visibilidad de columnas)
+model PreferenciaTabla {
+  id             Int       @id @default(autoincrement())
+  usuarioId      Int
+  empresaId      Int?
+  tabla          String
+  visibleColumns Json
+  creadoEn       DateTime  @default(now())
+  actualizadoEn  DateTime  @updatedAt
+
+  usuario Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  empresa Empresa? @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, empresaId, tabla])
+  @@index([usuarioId, empresaId, tabla])
 }
 
 enum EstadoWhatsApp {

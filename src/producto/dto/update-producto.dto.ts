@@ -14,6 +14,10 @@ export class UpdateProductoDto {
 
   @IsOptional()
   @IsInt()
+  marcaId?: number | null;
+
+  @IsOptional()
+  @IsInt()
   unidadMedidaId?: number;
 
   @IsOptional()

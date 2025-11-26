@@ -8,6 +8,7 @@ import {
 import { Prisma, EstadoType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
+import { S3Service } from '../s3/s3.service';
 import { KardexService } from '../kardex/kardex.service';
 import * as XLSX from 'xlsx';
 
@@ -17,6 +18,7 @@ export class ProductoService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => KardexService))
     private readonly kardexService: KardexService,
+    private readonly s3: S3Service,
   ) {}
 
   private async generarCodigoProducto(empresaId: number, prefijo = 'PR') {
@@ -47,6 +49,7 @@ export class ProductoService {
       igvPorcentaje?: number;
       stock: number;
       categoriaId?: number;
+      marcaId?: number;
       stockMinimo?: number;
       stockMaximo?: number;
     },
@@ -61,6 +64,7 @@ export class ProductoService {
       igvPorcentaje = 18,
       stock,
       categoriaId,
+      marcaId,
       stockMinimo,
       stockMaximo,
     } = data;
@@ -105,6 +109,7 @@ export class ProductoService {
           categoriaId && Number(categoriaId) > 0
             ? Number(categoriaId)
             : undefined,
+        marcaId: marcaId && Number(marcaId) > 0 ? Number(marcaId) : undefined,
         empresaId,
       },
     });
@@ -119,6 +124,7 @@ export class ProductoService {
     limit?: number;
     sort?: 'id' | 'descripcion' | 'codigo';
     order?: 'asc' | 'desc';
+    marcaId?: number;
   }) {
     const {
       empresaId,
@@ -127,12 +133,14 @@ export class ProductoService {
       limit = 10,
       sort = 'id',
       order = 'desc',
+      marcaId,
     } = params;
     const skip = (page - 1) * limit;
 
     const where: any = {
       empresaId,
       estado: { in: [EstadoType.ACTIVO, EstadoType.INACTIVO] },
+      marcaId: marcaId ? Number(marcaId) : undefined,
       OR: search
         ? [
             { descripcion: { contains: search, mode: 'insensitive' } },
@@ -141,7 +149,7 @@ export class ProductoService {
         : undefined,
     };
 
-    const [productos, total] = await Promise.all([
+    const [productosRaw, total] = await Promise.all([
       this.prisma.producto.findMany({
         where,
         skip,
@@ -151,6 +159,7 @@ export class ProductoService {
           id: true,
           codigo: true,
           descripcion: true,
+          imagenUrl: true,
           stock: true,
           stockMinimo: true,
           stockMaximo: true,
@@ -162,6 +171,7 @@ export class ProductoService {
           estado: true,
           categoriaId: true,
           unidadMedidaId: true,
+          marcaId: true,
           empresaId: true,
           creadoEn: true,
           unidadMedida: {
@@ -177,10 +187,38 @@ export class ProductoService {
               nombre: true,
             },
           },
+          marca: {
+            select: {
+              id: true,
+              nombre: true,
+            },
+          },
         },
       }),
       this.prisma.producto.count({ where }),
     ]);
+
+    // Firmar imagenes si son de S3
+    const signIfS3 = async (url?: string | null) => {
+      try {
+        if (!url) return url as any;
+        const idx = url.indexOf('amazonaws.com/');
+        if (idx === -1) return url as any;
+        const key = url.substring(idx + 'amazonaws.com/'.length);
+        if (!key) return url as any;
+        const signed = await this.s3.getSignedGetUrl(key, 600);
+        return signed || (url as any);
+      } catch {
+        return url as any;
+      }
+    };
+
+    const productos = await Promise.all(
+      productosRaw.map(async (p) => ({
+        ...p,
+        imagenUrl: await signIfS3((p as any).imagenUrl as any),
+      }))
+    );
 
     return { productos, total, page, limit };
   }
@@ -188,7 +226,7 @@ export class ProductoService {
   async obtenerPorId(id: number, empresaId: number) {
     const producto = await this.prisma.producto.findFirst({
       where: { id, empresaId },
-      include: { unidadMedida: true, categoria: true },
+      include: { unidadMedida: true, categoria: true, marca: true },
     });
     if (!producto) throw new NotFoundException('Producto no encontrado');
     return producto;
@@ -199,6 +237,7 @@ export class ProductoService {
     empresaId: number;
     descripcion?: string;
     categoriaId?: number | null;
+    marcaId?: number | null;
     unidadMedidaId?: number;
     tipoAfectacionIGV?: string;
     valorUnitario?: number;
@@ -253,6 +292,7 @@ export class ProductoService {
       data: {
         descripcion: data.descripcion,
         categoriaId: data.categoriaId,
+        marcaId: data.marcaId != null ? data.marcaId : undefined,
         unidadMedidaId: data.unidadMedidaId,
         tipoAfectacionIGV: data.tipoAfectacionIGV,
         valorUnitario:
@@ -280,12 +320,64 @@ export class ProductoService {
     });
   }
 
+  // ==================== IMÁGENES (S3) ====================
+
+  async subirImagenPrincipal(
+    empresaId: number,
+    productoId: number,
+    file: { buffer: Buffer; mimetype?: string },
+  ) {
+    const producto = await this.prisma.producto.findFirst({ where: { id: productoId, empresaId } });
+    if (!producto) throw new NotFoundException('Producto no encontrado');
+    if (!file || !file.buffer) throw new ForbiddenException('Archivo no proporcionado');
+    const ct = file.mimetype || 'image/jpeg';
+    if (!/^image\//i.test(ct)) throw new ForbiddenException('El archivo debe ser una imagen');
+
+    const key = this.s3.generateProductoImageKey(empresaId, productoId, ct, false);
+    const url = await this.s3.uploadImage(file.buffer, key, ct);
+
+    await this.prisma.producto.update({ where: { id: productoId }, data: { imagenUrl: url } });
+    return { url };
+  }
+
+  async subirImagenExtra(
+    empresaId: number,
+    productoId: number,
+    file: { buffer: Buffer; mimetype?: string },
+  ) {
+    const producto = await this.prisma.producto.findFirst({ where: { id: productoId, empresaId } });
+    if (!producto) throw new NotFoundException('Producto no encontrado');
+    if (!file || !file.buffer) throw new ForbiddenException('Archivo no proporcionado');
+    const ct = file.mimetype || 'image/jpeg';
+    if (!/^image\//i.test(ct)) throw new ForbiddenException('El archivo debe ser una imagen');
+
+    const key = this.s3.generateProductoImageKey(empresaId, productoId, ct, true);
+    const url = await this.s3.uploadImage(file.buffer, key, ct);
+
+    const actuales: string[] = Array.isArray((producto as any).imagenesExtra) ? (producto as any).imagenesExtra : [];
+    const nuevas = [...actuales, url];
+    await this.prisma.producto.update({ where: { id: productoId }, data: { imagenesExtra: nuevas as any } });
+    return { url };
+  }
+
   async cambiarEstado(id: number, empresaId: number, estado: EstadoType) {
     const producto = await this.prisma.producto.findFirst({
       where: { id, empresaId },
     });
     if (!producto) throw new NotFoundException('Producto no encontrado');
     return this.prisma.producto.update({ where: { id }, data: { estado } });
+  }
+
+  async eliminar(id: number, empresaId: number) {
+    const producto = await this.prisma.producto.findFirst({ where: { id, empresaId } });
+    if (!producto) throw new NotFoundException('Producto no encontrado');
+    return this.prisma.producto.update({
+      where: { id },
+      data: {
+        estado: 'PLACEHOLDER' as any,
+        publicarEnTienda: false as any,
+      },
+    });
   }
 
   async obtenerSiguienteCodigo(empresaId: number, prefijo = 'PR') {
@@ -307,7 +399,7 @@ export class ProductoService {
     const productos = await this.prisma.producto.findMany({
       where,
       orderBy: { id: 'desc' },
-      include: { unidadMedida: true, categoria: true },
+      include: { unidadMedida: true, categoria: true, marca: true },
     });
 
     const datosExcel = productos.map((producto) => ({
@@ -319,6 +411,7 @@ export class ProductoService {
       IGV: Number(producto.igvPorcentaje),
       STOCK: producto.stock,
       CATEGORIA: producto.categoria?.nombre || '',
+      MARCA: (producto as any)?.marca?.nombre || '',
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(datosExcel);

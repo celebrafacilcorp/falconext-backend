@@ -250,11 +250,13 @@ export class EmpresaService {
           fechaActivacion: true,
           fechaExpiracion: true,
           logo: true,
+          slugTienda: true,
           plan: {
             select: {
               nombre: true,
               costo: true,
               descripcion: true,
+              tieneTienda: true,
             },
           },
         },
@@ -274,10 +276,12 @@ export class EmpresaService {
         logo: e.logo,
         fechaActivacion: e.fechaActivacion,
         fechaExpiracion: e.fechaExpiracion,
+        slugTienda: e.slugTienda,
         plan: {
           nombre: e.plan.nombre,
           costo: e.plan.costo,
           descripcion: e.plan.descripcion,
+          tieneTienda: e.plan.tieneTienda,
         },
       })),
       total,

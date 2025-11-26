@@ -1,98 +1,271 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+_Tienda online + facturación electrónica para emprendedores peruanos_
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## 1. Visión del producto
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+El **Kit para Despegar** es una solución pensada para emprendedores peruanos que quieren:
 
-## Description
+- Vender más usando internet (WhatsApp, redes sociales, tienda online).
+- Verse más profesionales frente a sus clientes.
+- Cumplir con la **facturación electrónica** sin complicarse con temas técnicos.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+> No es solo facturación. Es un pequeño sistema para ayudar a despegar el negocio.
 
-## Project setup
+---
 
-```bash
-$ pnpm install
-```
+## 2. Público objetivo
 
-## Compile and run the project
+- Emprendedores y pequeños negocios en Perú:
+  - Bodegas y minimarkets.
+  - Restaurantes, dark kitchens, cafeterías.
+  - Tiendas de ropa, calzado, accesorios.
+  - Negocios de servicios (peluquería, barbería, talleres, etc.).
+- Personas con poco tiempo y poca experiencia técnica:
+  - Usan WhatsApp / Facebook, pero no saben crear su propia web.
+  - Quieren algo simple, rápido y económico.
 
-```bash
-# development
-$ pnpm run start
+---
 
-# watch mode
-$ pnpm run start:dev
+## 3. Propuesta de valor
 
-# production mode
-$ pnpm run start:prod
-```
+**Mensaje principal:**
 
-## Run tests
+> “Crea tu tienda online y emite tus comprobantes electrónicos en un solo lugar, fácil y pensado para emprendedores peruanos.”
 
-```bash
-# unit tests
-$ pnpm run test
+Beneficios clave:
 
-# e2e tests
-$ pnpm run test:e2e
+- Tienda online lista en minutos.
+- Tus clientes pueden ver tu catálogo y hacer pedidos.
+- Tú controlas tus ventas y puedes emitir **boletas/facturas electrónicas** desde el mismo sistema.
+- No necesitas saber de tecnología.
 
-# test coverage
-$ pnpm run test:cov
-```
+---
 
-## Deployment
+## 4. Alcance funcional – Versión 1 (MVP)
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### 4.1. Datos del negocio
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Cada emprendedor puede configurar:
 
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
+- Nombre comercial.
+- Logo.
+- Descripción corta del negocio.
+- Dirección (distrito, ciudad).
+- WhatsApp de contacto.
+- Redes sociales (Facebook, Instagram, TikTok).
+- Horario de atención.
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 4.2. Tienda online estándar
 
-## Resources
+- Plantilla única (diseño igual para todos, cambia solo:
+  - Logo.
+  - Colores básicos.
+  - Textos.
+- Diseño responsive (prioridad en vista móvil).
+- Página pública tipo:
 
-Check out a few resources that may come in handy when working with NestJS:
+  - `https://midominio.com/tienda/mi-negocio`
+  - o similar.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### 4.3. Gestión de productos
 
-## Support
+Módulo básico para administrar productos/servicios:
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+- Crear / editar / eliminar producto.
+- Campos mínimos:
+  - Nombre.
+  - Descripción corta.
+  - Precio.
+  - Categoría (ej: Bebidas, Combos, Ropa, Servicios).
+  - Una imagen por producto.
+  - Estado: Activo / Inactivo (para controlar visibilidad).
+- Solo los productos activos se muestran en la tienda pública.
 
-## Stay in touch
+### 4.4. Catálogo público
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+- Listado de productos ordenados por categoría o por prioridad.
+- Filtros simples (por categoría).
+- Visualización clara de:
+  - Nombre.
+  - Imagen.
+  - Precio.
+  - Descripción corta.
 
-## License
+### 4.5. Carrito y pedidos
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Flujo básico para el cliente final:
+
+1. El cliente entra a la URL de la tienda.
+2. Agrega productos al carrito (cantidad por producto).
+3. Completa un formulario de pedido con:
+   - Nombre.
+   - Número de WhatsApp.
+   - Dirección (opcional según tipo de negocio).
+   - Comentario adicional (ej: “sin hielo”, “talla M”, “entrega después de las 6pm”).
+4. Envía el pedido.
+
+Requisitos:
+
+- Registrar el pedido en el sistema interno.
+- Mostrar confirmación en pantalla.
+- Opcional: ofrecer botón para continuar el pedido por WhatsApp.
+
+### 4.6. Integración con WhatsApp (nivel funcional)
+
+- Generar un mensaje de WhatsApp con:
+  - Lista de productos y cantidades.
+  - Total estimado.
+  - Nombre y datos del cliente.
+- El cliente o el emprendedor pueden usar este mensaje para coordinar pago y entrega.
+- No es necesario integrar técnicamente la API oficial en la V1: basta con armar la URL con texto.
+
+### 4.7. Panel del emprendedor
+
+Módulo interno para el emprendedor (dashboard):
+
+- **Lista de pedidos** con:
+  - Fecha y hora.
+  - Nombre del cliente.
+  - Monto total.
+  - Estado del pedido:
+    - PENDIENTE.
+    - PAGADO.
+    - FACTURADO.
+- Opciones básicas:
+  - Cambiar estado del pedido.
+  - Ver detalle (productos, cantidades, comentario).
+
+### 4.8. Conexión mínima con facturación electrónica
+
+Integración conceptual con el sistema de facturación:
+
+- Cada pedido puede convertirse en:
+  - Boleta electrónica.
+  - Factura electrónica.
+- Flujo esperado:
+  1. Cliente hace el pedido.
+  2. Emprendedor confirma y cobra.
+  3. Desde el pedido, hace clic en “Generar boleta/factura”.
+  4. El sistema crea el comprobante usando el módulo de facturación existente.
+
+(La implementación técnica y los endpoints se definen aparte.)
+
+---
+
+## 5. Reglas de negocio
+
+- Una tienda por emprendedor en la versión 1.
+- Sin manejo de variantes avanzadas:
+  - No hay tallas/colores en la V1 (se pueden agregar después).
+- Sin pagos online integrados (Yape, Plin, tarjetas) en la V1.
+  - Los pagos se coordinan por WhatsApp o directamente en el local.
+- Límite razonable de productos en la tienda según el plan.
+- Límite de comprobantes electrónicos mensuales por plan.
+
+---
+
+## 6. Experiencia de usuario (UX) – Flujos clave
+
+### 6.1. Flujo del emprendedor (configuración inicial)
+
+1. Se registra / inicia sesión.
+2. Completa los datos de su negocio.
+3. Crea sus primeros productos.
+4. Activa la tienda (marca la tienda como visible).
+5. Copia el link de su tienda y lo comparte por:
+   - WhatsApp.
+   - Redes sociales.
+   - QR en su local.
+
+### 6.2. Flujo del cliente final
+
+1. Hace clic en el enlace de la tienda.
+2. Ve el catálogo y agrega productos al carrito.
+3. Envía el pedido.
+4. Recibe confirmación y, si aplica, contacto por WhatsApp.
+
+---
+
+## 7. Soporte y materiales de ayuda
+
+- Canales:
+  - WhatsApp de soporte.
+  - Correo.
+- Horario de atención definido.
+- Materiales a crear:
+  - Guía “Primeros pasos en tu tienda online”.
+  - Video corto: “Crea tu tienda en menos de 10 minutos”.
+  - Preguntas frecuentes:
+    - ¿Cómo subo un producto?
+    - ¿Cómo edito precios?
+    - ¿Cómo comparto mi tienda?
+    - ¿Cómo genero un comprobante de un pedido?
+
+---
+
+## 8. Roadmap simple
+
+### 8.1. Versión 1 (MVP – Kit para Despegar)
+
+- Todo lo descrito en este documento:
+  - Datos del negocio.
+  - Tienda estándar.
+  - Gestión de productos.
+  - Carrito y pedidos.
+  - Integración funcional con WhatsApp.
+  - Panel básico de pedidos.
+  - Botón para generar comprobante.
+
+### 8.2. Futuras versiones (no incluidas en la V1)
+
+- Pagos online integrados (Yape, Plin, tarjetas).
+- Variantes de producto (tallas, colores).
+- Múltiples fotos por producto.
+- Reportes avanzados de ventas.
+- Más plantillas de diseño (personalización visual).
+- Programa de clientes frecuentes.
+
+---
+
+## 9. Planes y precios sugeridos (Perú)
+
+Pensado para ser accesible y ganar mercado por volumen.
+
+### Plan Básico – S/ 39 / mes
+
+- Facturación electrónica esencial.
+- 1 tienda online estándar.
+- Hasta **100 productos** en la tienda.
+- Límite de comprobantes mensuales adecuado para negocios pequeños.
+- Soporte por WhatsApp / correo.
+
+### Plan Emprendedor – S/ 69 / mes
+
+- Todo lo del Plan Básico.
+- Más comprobantes mensuales.
+- Hasta **500 productos**.
+- Reporte simple de ventas mensuales (total por día / mes).
+- Soporte con prioridad media.
+
+### Plan Pro – S/ 99 / mes
+
+- Todo lo del Plan Emprendedor.
+- Más comprobantes mensuales (para negocios con más movimiento).
+- Varios usuarios (ej. 2–3 usuarios por negocio).
+- Acceso anticipado a nuevas funciones:
+  - Pagos online (cuando se lance).
+  - Reportes adicionales.
+
+> Los precios son sugeridos y deben ajustarse según el mercado, costos y posición de la marca.
+
+---
+
+## 10. Mensajes comerciales clave
+
+Frases que se pueden usar en la web / marketing:
+
+- “Tu tienda online y facturación electrónica en un solo lugar.”
+- “Pensado para emprendedores peruanos, no para expertos en tecnología.”
+- “Comparte tu tienda por WhatsApp y empieza a recibir pedidos hoy mismo.”
+- “Formaliza tu negocio sin complicarte con la SUNAT.”
+
+---

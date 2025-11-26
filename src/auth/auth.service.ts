@@ -24,12 +24,14 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {
-    const accessEnv =
-      this.config.get<string>('JWT_ACCESS_EXPIRES_IN') ?? '86400';
-    const refreshEnv =
-      this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '86400';
-    this.accessExpiresInSec = Number(accessEnv) || 86400; // segundos
-    this.refreshExpiresInSec = Number(refreshEnv) || 86400; // segundos
+    const accessEnv = this.config.get<string>('JWT_ACCESS_EXPIRES_IN') ?? '86400';
+    const refreshEnv = this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '86400';
+    const nodeEnv = this.config.get<string>('NODE_ENV') || process.env.NODE_ENV || 'development';
+    const isProduction = nodeEnv === 'production';
+
+    // For testing: use 60s expiry in non-production
+    this.accessExpiresInSec = isProduction ? (Number(accessEnv) || 86400) : 60;
+    this.refreshExpiresInSec = isProduction ? (Number(refreshEnv) || 86400) : 60;
   }
 
   async login({ email, password }: LoginPayload) {
@@ -140,6 +142,12 @@ export class AuthService {
             ruc: true,
             tipoEmpresa: true,
             rubro: true,
+            slugTienda: true,
+            plan: {
+              select: {
+                tieneTienda: true,
+              },
+            },
           },
         },
       },

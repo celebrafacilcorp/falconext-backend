@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 @Injectable()
@@ -90,6 +90,60 @@ export class S3Service {
   }
 
   /**
+   * Sube una imagen (PNG/JPEG/WEBP) a S3
+   */
+  async uploadImage(buffer: Buffer, key: string, contentType = 'image/jpeg'): Promise<string> {
+    // Convertir a WEBP si es posible
+    let out = buffer;
+    try {
+      // Carga dinámica para evitar romper si no está instalado en ciertos entornos
+      // @ts-ignore
+      const sharp = (await import('sharp')).default as any;
+      out = await sharp(buffer).webp({ quality: 82 }).toBuffer();
+      contentType = 'image/webp';
+      // Forzar extensión .webp en la key si no la tiene
+      if (!key.toLowerCase().endsWith('.webp')) {
+        key = key.replace(/\.(png|jpe?g|jpg|gif|bmp|tiff?)$/i, '.webp');
+      }
+    } catch (_e) {
+      // Si no se pudo convertir, subimos el original con su contentType recibido
+    }
+    return this.uploadPDF(out, key, contentType);
+  }
+
+  /**
+   * Helpers para generar keys estandarizadas
+   */
+  private extFromMime(contentType?: string): string {
+    switch (contentType) {
+      case 'image/png':
+        return 'png';
+      case 'image/webp':
+        return 'webp';
+      case 'image/jpeg':
+      case 'image/jpg':
+        return 'jpg';
+      case 'application/pdf':
+        return 'pdf';
+      default:
+        return 'bin';
+    }
+  }
+
+  generateTiendaQrKey(empresaId: number, tipo: 'yape' | 'plin', _contentType?: string): string {
+    const ts = Date.now();
+    // Guardamos siempre como WEBP
+    return `tiendas/empresa-${empresaId}/qr/${tipo}-${ts}.webp`;
+  }
+
+  generateProductoImageKey(empresaId: number, productoId: number, _contentType?: string, extra = false): string {
+    const ts = Date.now();
+    const carpeta = extra ? 'extra' : 'principal';
+    // Guardamos siempre como WEBP
+    return `productos/empresa-${empresaId}/producto-${productoId}/${carpeta}-${ts}.webp`;
+  }
+
+  /**
    * Genera una URL firmada temporal (si no quieres hacer público el bucket)
    * @param key Ruta del archivo en S3
    * @param expiresIn Tiempo de expiración en segundos (default: 1 hora)
@@ -109,6 +163,26 @@ export class S3Service {
       return url;
     } catch (error) {
       this.logger.error(`❌ Error generando URL firmada: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * URL firmada para descargar/visualizar (GET) un objeto
+   */
+  async getSignedGetUrl(key: string, expiresIn: number = 300): Promise<string> {
+    if (!this.isEnabled()) {
+      throw new Error('S3 no está configurado');
+    }
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      });
+      const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+      return url;
+    } catch (error) {
+      this.logger.error(`❌ Error generando URL firmada (GET): ${error.message}`, error.stack);
       throw error;
     }
   }

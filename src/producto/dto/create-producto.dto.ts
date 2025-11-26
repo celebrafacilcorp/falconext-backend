@@ -37,6 +37,10 @@ export class CreateProductoDto {
 
   @IsOptional()
   @IsInt()
+  marcaId?: number;
+
+  @IsOptional()
+  @IsInt()
   stockMinimo?: number;
 
   @IsOptional()

@@ -23,3 +23,19 @@ export const excelUploadOptions = {
 } as const;
 
 export const uploadExcel: any = multer(excelUploadOptions).single('excel');
+
+// Imágenes (PNG/JPEG/WEBP) en memoria
+const imageStorage = multer.memoryStorage();
+const imageFilter = (req: any, file: any, cb: any) => {
+  const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+  if (!allowed.includes(file.mimetype)) {
+    return cb(new BadRequestException('Solo se permiten imágenes PNG/JPEG/WEBP'));
+  }
+  cb(null, true);
+};
+
+export const imageUploadOptions = {
+  storage: imageStorage,
+  fileFilter: imageFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+} as const;
