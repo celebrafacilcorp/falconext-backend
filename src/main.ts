@@ -15,18 +15,31 @@ async function bootstrap() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+  // CORS configuration - supports both local and production environments
   const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:4000',
     'http://192.168.100.16:4000',
     'https://falconext-mype-production.up.railway.app',
-  ];
+    process.env.FRONTEND_URL,
+  ].filter(Boolean);
 
   app.enableCors({
-    origin: allowedOrigins,
-    methods: ['GET', 'POST', 'DELETE', 'PATCH', 'PUT'],
-    allowedHeaders: ['Authorization', 'Content-Type'],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, Postman, curl)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`CORS: Origin ${origin} not allowed`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'DELETE', 'PATCH', 'PUT', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'Accept'],
   });
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
