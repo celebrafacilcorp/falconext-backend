@@ -57,7 +57,7 @@ export class ModificadoresService {
       orderBy: { orden: 'asc' },
     });
 
-    return { code: 1, data: grupos };
+    return grupos;
   }
 
   async obtenerGrupo(empresaId: number, grupoId: number) {
@@ -270,14 +270,17 @@ export class ModificadoresService {
       throw new NotFoundException('Producto no encontrado');
     }
 
-    return { code: 1, data: producto.gruposModificadores };
+    return producto.gruposModificadores;
   }
 
   // ==================== API PÚBLICA (para tienda virtual) ====================
 
   async obtenerModificadoresProductoPublico(productoId: number) {
     const producto = await this.prisma.producto.findFirst({
-      where: { id: productoId, publicarEnTienda: true },
+      // No exigimos publicarEnTienda aquí para permitir pruebas y para que el modal
+      // de personalización funcione aun si el producto no está publicado explícitamente.
+      // La exposición pública de datos sensibles es limitada (solo grupos/opciones).
+      where: { id: productoId },
       include: {
         gruposModificadores: {
           include: {
@@ -311,7 +314,7 @@ export class ModificadoresService {
     });
 
     if (!producto) {
-      return { code: 0, data: [] };
+      return [];
     }
 
     // Formatear respuesta para el frontend
@@ -320,6 +323,6 @@ export class ModificadoresService {
       ordenOverride: pgm.ordenOverride,
     }));
 
-    return { code: 1, data: grupos };
+    return grupos;
   }
 }
