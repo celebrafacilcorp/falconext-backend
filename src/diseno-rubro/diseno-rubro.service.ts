@@ -92,7 +92,9 @@ export class DisenoRubroService {
         if (empresa.disenoOverride) {
             return {
                 ...disenoBase,
-                ...(empresa.disenoOverride as object),
+                ...(typeof empresa.disenoOverride === 'string'
+                    ? JSON.parse(empresa.disenoOverride)
+                    : empresa.disenoOverride as object),
             };
         }
 

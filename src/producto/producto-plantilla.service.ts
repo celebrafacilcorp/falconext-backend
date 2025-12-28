@@ -57,7 +57,7 @@ export class ProductoPlantillaService {
                 const catExistente = await this.prisma.categoria.findFirst({
                     where: {
                         empresaId: empresaId,
-                        nombre: { equals: nombreCat, mode: 'insensitive' }
+                        nombre: { equals: nombreCat }
                     }
                 });
 
@@ -81,7 +81,7 @@ export class ProductoPlantillaService {
                 const marcaExistente = await this.prisma.marca.findFirst({
                     where: {
                         empresaId: empresaId,
-                        nombre: { equals: nombreMarca, mode: 'insensitive' }
+                        nombre: { equals: nombreMarca }
                     }
                 });
 
@@ -183,7 +183,7 @@ export class ProductoPlantillaService {
                         const catExistente = await this.prisma.categoria.findFirst({
                             where: {
                                 empresaId: empresaId,
-                                nombre: { equals: nombreCat, mode: 'insensitive' }
+                                nombre: { equals: nombreCat }
                             }
                         });
 
@@ -202,7 +202,7 @@ export class ProductoPlantillaService {
                         const marcaExistente = await this.prisma.marca.findFirst({
                             where: {
                                 empresaId: empresaId,
-                                nombre: { equals: nombreMarca, mode: 'insensitive' }
+                                nombre: { equals: nombreMarca }
                             }
                         });
 
@@ -262,8 +262,8 @@ export class ProductoPlantillaService {
         if (rubroId) where.rubroId = rubroId;
         if (search) {
             where.OR = [
-                { nombre: { contains: search, mode: 'insensitive' } },
-                { descripcion: { contains: search, mode: 'insensitive' } },
+                { nombre: { contains: search } },
+                { descripcion: { contains: search } },
             ];
         }
 
@@ -457,7 +457,13 @@ export class ProductoPlantillaService {
                 console.warn('Import completed with errors:', errors);
             }
 
-            return { message: 'Importación completada', importados: count, totalEscaneados: productos.length, errores: errors.length };
+            return {
+                message: errors.length > 0 ? 'Importación con errores' : 'Importación completada',
+                importados: count,
+                totalEscaneados: productos.length,
+                errores: errors.length,
+                detallesErrores: errors.slice(0, 10)
+            };
         } catch (error: any) {
             console.error('CRITICAL ERROR in importarDeEmpresa:', error);
             // Return error details instead of throwing 500
