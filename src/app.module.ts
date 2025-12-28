@@ -29,6 +29,7 @@ import { DisenoRubroModule } from './diseno-rubro/diseno-rubro.module';
 import { CombosModule } from './combos/combos.module';
 import { ModificadoresModule } from './modificadores/modificadores.module';
 import { RubroModule } from './rubro/rubro.module';
+import { PlanModule } from './plan/plan.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { RubroModule } from './rubro/rubro.module';
     CombosModule,
     ModificadoresModule,
     RubroModule,
+    PlanModule,
   ],
   controllers: [AppController],
   providers: [AppService],
