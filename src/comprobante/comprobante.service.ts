@@ -56,123 +56,137 @@ export class ComprobanteService {
       tipoDoc,
       estadoPago,
     } = params;
-    const skip = (page - 1) * limit;
 
-    const tiposFormales = ['01', '03', '07', '08'];
-    const tiposInformales = ['TICKET', 'NV', 'RH', 'CP', 'NP', 'OT'];
-    const tiposPermitidos =
-      tipoComprobante === 'FORMAL' ? tiposFormales : tiposInformales;
+    console.log('[ComprobanteService.listar] Params:', JSON.stringify(params));
 
-    // Validar tipoDoc si viene
-    if (tipoDoc && !tiposPermitidos.includes(tipoDoc)) {
-      throw new BadRequestException(
-        `El tipo de documento debe ser uno de: ${tiposPermitidos.join(', ')}`,
-      );
-    }
+    try {
+      const skip = (page - 1) * limit;
 
-    let adjustedFechaInicio: string | undefined;
-    let adjustedFechaFin: string | undefined;
-    if (fechaInicio) {
-      adjustedFechaInicio = new Date(
-        `${fechaInicio}T00:00:00.000-05:00`,
-      ).toISOString();
-    }
-    if (fechaFin) {
-      adjustedFechaFin = new Date(
-        `${fechaFin}T23:59:59.999-05:00`,
-      ).toISOString();
-    }
+      const tiposFormales = ['01', '03', '07', '08'];
+      const tiposInformales = ['TICKET', 'NV', 'RH', 'CP', 'NP', 'OT'];
+      const tiposPermitidos =
+        tipoComprobante === 'FORMAL' ? tiposFormales : tiposInformales;
 
-    const where: any = {
-      empresaId,
-      tipoDoc: { in: tipoDoc ? [tipoDoc] : tiposPermitidos },
-      ...(search
-        ? {
-          OR: [
-            { serie: { contains: search, mode: 'insensitive' } },
-            ...(Number.isNaN(+search)
-              ? []
-              : [{ correlativo: parseInt(search, 10) }]),
-            {
-              cliente: { nroDoc: { contains: search, mode: 'insensitive' } },
+      // Validar tipoDoc si viene
+      if (tipoDoc && !tiposPermitidos.includes(tipoDoc)) {
+        throw new BadRequestException(
+          `El tipo de documento debe ser uno de: ${tiposPermitidos.join(', ')}`,
+        );
+      }
+
+      let adjustedFechaInicio: string | undefined;
+      let adjustedFechaFin: string | undefined;
+      if (fechaInicio) {
+        adjustedFechaInicio = new Date(
+          `${fechaInicio}T00:00:00.000-05:00`,
+        ).toISOString();
+      }
+      if (fechaFin) {
+        adjustedFechaFin = new Date(
+          `${fechaFin}T23:59:59.999-05:00`,
+        ).toISOString();
+      }
+
+      const where: any = {
+        empresaId,
+        tipoDoc: { in: tipoDoc ? [tipoDoc] : tiposPermitidos },
+        ...(search
+          ? {
+            OR: [
+              { serie: { contains: search, mode: 'insensitive' } },
+              ...(Number.isNaN(+search)
+                ? []
+                : [{ correlativo: parseInt(search, 10) }]),
+              {
+                cliente: { nroDoc: { contains: search, mode: 'insensitive' } },
+              },
+              {
+                cliente: { nombre: { contains: search, mode: 'insensitive' } },
+              },
+            ],
+          }
+          : {}),
+        ...(fechaInicio || fechaFin
+          ? {
+            fechaEmision: {
+              ...(adjustedFechaInicio
+                ? { gte: adjustedFechaInicio as any }
+                : {}),
+              ...(adjustedFechaFin ? { lte: adjustedFechaFin as any } : {}),
             },
-            {
-              cliente: { nombre: { contains: search, mode: 'insensitive' } },
+          }
+          : {}),
+        ...(tipoComprobante === 'FORMAL' && estado
+          ? { estadoEnvioSunat: estado }
+          : {}),
+        ...(tipoComprobante === 'INFORMAL' && estadoPago
+          ? { estadoPago: estadoPago as any }
+          : {}),
+      };
+
+      console.log('[ComprobanteService.listar] Where clause:', JSON.stringify(where));
+
+      const [rawItems, totalDb] = await Promise.all([
+        this.prisma.comprobante.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { [sort]: order } as any,
+          include: {
+            cliente: {
+              select: { id: true, nombre: true, nroDoc: true, persona: true },
             },
-          ],
-        }
-        : {}),
-      ...(fechaInicio || fechaFin
-        ? {
-          fechaEmision: {
-            ...(adjustedFechaInicio
-              ? { gte: adjustedFechaInicio as any }
-              : {}),
-            ...(adjustedFechaFin ? { lte: adjustedFechaFin as any } : {}),
-          },
-        }
-        : {}),
-      ...(tipoComprobante === 'FORMAL' && estado
-        ? { estadoEnvioSunat: estado }
-        : {}),
-      ...(tipoComprobante === 'INFORMAL' && estadoPago
-        ? { estadoPago: estadoPago as any }
-        : {}),
-    };
-
-    const [rawItems, totalDb] = await Promise.all([
-      this.prisma.comprobante.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { [sort]: order } as any,
-        include: {
-          cliente: {
-            select: { id: true, nombre: true, nroDoc: true, persona: true },
-          },
-          detalles: {
-            select: {
-              producto: { select: { id: true, descripcion: true } },
-              unidad: true,
-              descripcion: true,
-              cantidad: true,
-              mtoValorUnitario: true,
-              mtoValorVenta: true,
-              mtoBaseIgv: true,
-              porcentajeIgv: true,
-              igv: true,
-              totalImpuestos: true,
-              mtoPrecioUnitario: true,
+            detalles: {
+              select: {
+                producto: { select: { id: true, descripcion: true } },
+                unidad: true,
+                descripcion: true,
+                cantidad: true,
+                mtoValorUnitario: true,
+                mtoValorVenta: true,
+                mtoBaseIgv: true,
+                porcentajeIgv: true,
+                igv: true,
+                totalImpuestos: true,
+                mtoPrecioUnitario: true,
+              },
             },
+            leyendas: { select: { code: true, value: true } },
+            motivo: { select: { codigo: true, descripcion: true } },
+            tipoOperacion: { select: { codigo: true, descripcion: true } },
           },
-          leyendas: { select: { code: true, value: true } },
-          motivo: { select: { codigo: true, descripcion: true } },
-          tipoOperacion: { select: { codigo: true, descripcion: true } },
-        },
-      }),
-      this.prisma.comprobante.count({ where }),
-    ]);
+        }),
+        this.prisma.comprobante.count({ where }),
+      ]);
 
-    const tipoLabels: Record<string, string> = {
-      '01': 'FACTURA',
-      '03': 'BOLETA',
-      '07': 'NOTA DE CREDITO',
-      '08': 'NOTA DE DEBITO',
-      TICKET: 'TICKET',
-      NV: 'NOTA DE VENTA',
-      RH: 'RECIBO POR HONORARIOS',
-      CP: 'COMPROBANTE DE PAGO',
-      NP: 'NOTA DE PEDIDO',
-      OT: 'ORDEN DE TRABAJO',
-    };
+      console.log('[ComprobanteService.listar] Query successful. Found:', rawItems.length, 'items');
 
-    // Mapear etiqueta de comprobante (estadoPago/saldo ya vienen de DB si existen)
-    const mapped = rawItems.map((it) => {
-      const comprobante = tipoLabels[it.tipoDoc] || it.tipoDoc;
-      return { ...it, comprobante } as any;
-    });
+      const tipoLabels: Record<string, string> = {
+        '01': 'FACTURA',
+        '03': 'BOLETA',
+        '07': 'NOTA DE CREDITO',
+        '08': 'NOTA DE DEBITO',
+        TICKET: 'TICKET',
+        NV: 'NOTA DE VENTA',
+        RH: 'RECIBO POR HONORARIOS',
+        CP: 'COMPROBANTE DE PAGO',
+        NP: 'NOTA DE PEDIDO',
+        OT: 'ORDEN DE TRABAJO',
+      };
 
-    return { comprobantes: mapped, total: totalDb, page, limit };
+      // Mapear etiqueta de comprobante (estadoPago/saldo ya vienen de DB si existen)
+      const mapped = rawItems.map((it) => {
+        const comprobante = tipoLabels[it.tipoDoc] || it.tipoDoc;
+        return { ...it, comprobante } as any;
+      });
+
+      return { comprobantes: mapped, total: totalDb, page, limit };
+    } catch (error: any) {
+      console.error('[ComprobanteService.listar] ❌ ERROR:', error.message);
+      console.error('[ComprobanteService.listar] Error code:', error.code);
+      console.error('[ComprobanteService.listar] Full error:', JSON.stringify(error, null, 2));
+      throw error;
+    }
   }
 
   async siguienteCorrelativo(
@@ -180,31 +194,41 @@ export class ComprobanteService {
     tipoDoc: string,
     tipDocAfectado?: string,
   ) {
-    const tiposValidos = [
-      '01',
-      '03',
-      '07',
-      '08',
-      'TICKET',
-      'NV',
-      'RH',
-      'CP',
-      'NP',
-      'OT',
-    ];
-    if (!tiposValidos.includes(tipoDoc)) {
-      throw new BadRequestException('tipoDoc inválido');
+    console.log('[ComprobanteService.siguienteCorrelativo] empresaId:', empresaId, 'tipoDoc:', tipoDoc, 'tipDocAfectado:', tipDocAfectado);
+
+    try {
+      const tiposValidos = [
+        '01',
+        '03',
+        '07',
+        '08',
+        'TICKET',
+        'NV',
+        'RH',
+        'CP',
+        'NP',
+        'OT',
+      ];
+      if (!tiposValidos.includes(tipoDoc)) {
+        throw new BadRequestException('tipoDoc inválido');
+      }
+      if ((tipoDoc === '07' || tipoDoc === '08') && !tipDocAfectado) {
+        throw new BadRequestException('tipDocAfectado requerido para notas');
+      }
+      // Reusar la misma lógica centralizada para serie y correlativo
+      const { serie, correlativo } = await this.obtenerSerieYCorrelativo(
+        tipoDoc,
+        tipDocAfectado ?? null,
+        empresaId,
+      );
+      console.log('[ComprobanteService.siguienteCorrelativo] Success - serie:', serie, 'correlativo:', correlativo);
+      return { serie, correlativo };
+    } catch (error: any) {
+      console.error('[ComprobanteService.siguienteCorrelativo] ❌ ERROR:', error.message);
+      console.error('[ComprobanteService.siguienteCorrelativo] Error code:', error.code);
+      console.error('[ComprobanteService.siguienteCorrelativo] Full error:', JSON.stringify(error, null, 2));
+      throw error;
     }
-    if ((tipoDoc === '07' || tipoDoc === '08') && !tipDocAfectado) {
-      throw new BadRequestException('tipDocAfectado requerido para notas');
-    }
-    // Reusar la misma lógica centralizada para serie y correlativo
-    const { serie, correlativo } = await this.obtenerSerieYCorrelativo(
-      tipoDoc,
-      tipDocAfectado ?? null,
-      empresaId,
-    );
-    return { serie, correlativo };
   }
 
   async detalle(empresaId: number, serie: string, correlativo: number) {
@@ -344,57 +368,72 @@ export class ComprobanteService {
     tipDocAfectado: string | null,
     empresaId: number,
   ) {
-    let serie: string;
-    switch (tipoDoc) {
-      case '01':
-        serie = 'F0A1';
-        break;
-      case '03':
-        serie = 'B0A1';
-        break;
-      case '07':
-        if (tipDocAfectado === '01') serie = 'FCA1';
-        else if (tipDocAfectado === '03') serie = 'BCA1';
-        else
-          throw new BadRequestException(
-            'Tipo de documento afectado inválido para nota de crédito',
-          );
-        break;
-      case '08':
-        if (tipDocAfectado === '01') serie = 'FDA1';
-        else if (tipDocAfectado === '03') serie = 'BDA1';
-        else
-          throw new BadRequestException(
-            'Tipo de documento afectado inválido para nota de débito',
-          );
-        break;
-      case 'TICKET':
-        serie = 'T001';
-        break;
-      case 'NV':
-        serie = 'NV01';
-        break;
-      case 'RH':
-        serie = 'RH01';
-        break;
-      case 'CP':
-        serie = 'CP01';
-        break;
-      case 'NP':
-        serie = 'NP01';
-        break;
-      case 'OT':
-        serie = 'OT01';
-        break;
-      default:
-        throw new BadRequestException('Tipo de documento no reconocido');
+    console.log('[obtenerSerieYCorrelativo] tipoDoc:', tipoDoc, 'tipDocAfectado:', tipDocAfectado, 'empresaId:', empresaId);
+
+    try {
+      let serie: string;
+      switch (tipoDoc) {
+        case '01':
+          serie = 'F0A1';
+          break;
+        case '03':
+          serie = 'B0A1';
+          break;
+        case '07':
+          if (tipDocAfectado === '01') serie = 'FCA1';
+          else if (tipDocAfectado === '03') serie = 'BCA1';
+          else
+            throw new BadRequestException(
+              'Tipo de documento afectado inválido para nota de crédito',
+            );
+          break;
+        case '08':
+          if (tipDocAfectado === '01') serie = 'FDA1';
+          else if (tipDocAfectado === '03') serie = 'BDA1';
+          else
+            throw new BadRequestException(
+              'Tipo de documento afectado inválido para nota de débito',
+            );
+          break;
+        case 'TICKET':
+          serie = 'T001';
+          break;
+        case 'NV':
+          serie = 'NV01';
+          break;
+        case 'RH':
+          serie = 'RH01';
+          break;
+        case 'CP':
+          serie = 'CP01';
+          break;
+        case 'NP':
+          serie = 'NP01';
+          break;
+        case 'OT':
+          serie = 'OT01';
+          break;
+        default:
+          throw new BadRequestException('Tipo de documento no reconocido');
+      }
+
+      console.log('[obtenerSerieYCorrelativo] Querying for serie:', serie);
+
+      const ultimo = await this.prisma.comprobante.findFirst({
+        where: { empresaId, tipoDoc, serie },
+        orderBy: { correlativo: 'desc' },
+      });
+      const correlativo = ultimo ? Number(ultimo.correlativo) + 1 : 1;
+
+      console.log('[obtenerSerieYCorrelativo] Success - ultimo:', ultimo?.id, 'nuevo correlativo:', correlativo);
+
+      return { serie, correlativo };
+    } catch (error: any) {
+      console.error('[obtenerSerieYCorrelativo] ❌ ERROR:', error.message);
+      console.error('[obtenerSerieYCorrelativo] Error code:', error.code);
+      console.error('[obtenerSerieYCorrelativo] Full error:', JSON.stringify(error, null, 2));
+      throw error;
     }
-    const ultimo = await this.prisma.comprobante.findFirst({
-      where: { empresaId, tipoDoc, serie },
-      orderBy: { correlativo: 'desc' },
-    });
-    const correlativo = ultimo ? Number(ultimo.correlativo) + 1 : 1;
-    return { serie, correlativo };
   }
 
   private async cargarProductosYDetalles(detalles: any[], empresaId: number) {
