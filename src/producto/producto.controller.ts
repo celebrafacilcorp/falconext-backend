@@ -26,11 +26,15 @@ import { ListProductoDto } from './dto/list-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { imageUploadOptions } from '../common/utils/multer.config';
+import { GeminiService } from '../gemini/gemini.service';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('producto')
 export class ProductoController {
-  constructor(private readonly service: ProductoService) { }
+  constructor(
+    private readonly service: ProductoService,
+    private readonly geminiService: GeminiService
+  ) { }
 
   @Post('crear')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
@@ -42,6 +46,46 @@ export class ProductoController {
     const producto = await this.service.crear(dto, user.empresaId);
     res.locals.message = 'Producto creado correctamente';
     return producto;
+  }
+
+  @Post('ia/categorizar')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  async categorizarIA(@Body() body: { nombre: string }) {
+    if (!this.geminiService) {
+      return { success: false, message: 'Gemini Service not available' };
+    }
+    const result = await this.geminiService.categorizarProductos([{ id: 0, nombre: body.nombre }]);
+    if (result.length > 0) {
+      return { success: true, data: result[0] };
+    }
+    return { success: false, message: 'No se pudo categorizar' };
+  }
+
+  @Post('ia/generar-imagen')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  async generarImagenIA(@Body() body: { nombre: string }) {
+    try {
+      // Dynamic import to avoid build issues if lib is commonjs
+      const { GOOGLE_IMG_SCRAP } = await import('google-img-scrap');
+      const results = await GOOGLE_IMG_SCRAP({
+        search: body.nombre,
+        limit: 8,
+        safeSearch: false
+      });
+
+      if (results && results.result && Array.isArray(results.result) && results.result.length > 0) {
+        // Prefer https
+        const image = results.result.find((img: any) => img.url && img.url.startsWith('https')) || results.result.find((img: any) => img.url && img.url.startsWith('http'));
+
+        if (image && image.url) {
+          return { success: true, url: image.url };
+        }
+      }
+      return { success: false, message: 'No se encontraron imágenes' };
+    } catch (e: any) {
+      console.error('Error generating image:', e);
+      return { success: false, message: e.message || 'Error interno al buscar imagen' };
+    }
   }
 
   // ==================== IMÁGENES (S3) ====================
