@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   private parseRange(fechaInicio?: string, fechaFin?: string) {
     const whereFecha: any = {};
@@ -18,27 +18,39 @@ export class DashboardService {
     fechaInicio?: string,
     fechaFin?: string,
   ) {
-    const fechaEmision = this.parseRange(fechaInicio, fechaFin);
-    const whereBase: any = {
-      empresaId,
-      ...(fechaEmision ? { fechaEmision } : {}),
-    };
-    const [totalIngresosAgg, totalComprobantes, totalClientes, totalProductos] =
-      await Promise.all([
-        this.prisma.comprobante.aggregate({
-          _sum: { mtoImpVenta: true },
-          where: whereBase,
-        }),
-        this.prisma.comprobante.count({ where: whereBase }),
-        this.prisma.cliente.count({ where: { empresaId } }),
-        this.prisma.producto.count({ where: { empresaId } }),
-      ]);
-    return {
-      totalIngresos: Number(totalIngresosAgg._sum.mtoImpVenta ?? 0),
-      totalComprobantes,
-      totalClientes,
-      totalProductos,
-    };
+    const startTime = Date.now();
+    try {
+      const fechaEmision = this.parseRange(fechaInicio, fechaFin);
+      const whereBase: any = {
+        empresaId,
+        ...(fechaEmision ? { fechaEmision } : {}),
+      };
+
+      const [totalIngresosAgg, totalComprobantes, totalClientes, totalProductos] =
+        await Promise.all([
+          this.prisma.comprobante.aggregate({
+            _sum: { mtoImpVenta: true },
+            where: whereBase,
+          }),
+          this.prisma.comprobante.count({ where: whereBase }),
+          this.prisma.cliente.count({ where: { empresaId } }),
+          this.prisma.producto.count({ where: { empresaId } }),
+        ]);
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[Dashboard] headerResumen completed in ${elapsed}ms for empresa ${empresaId}`);
+
+      return {
+        totalIngresos: Number(totalIngresosAgg._sum.mtoImpVenta ?? 0),
+        totalComprobantes,
+        totalClientes,
+        totalProductos,
+      };
+    } catch (error: any) {
+      const elapsed = Date.now() - startTime;
+      console.error(`[Dashboard] headerResumen FAILED after ${elapsed}ms for empresa ${empresaId}:`, error.message);
+      throw error;
+    }
   }
 
   async ingresosPorComprobante(

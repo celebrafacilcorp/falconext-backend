@@ -45,11 +45,19 @@ export class PdfGeneratorService {
 
   private async getBrowser(): Promise<puppeteer.Browser> {
     if (!this.browser) {
+      const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
       this.browser = await puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        executablePath: executablePath || undefined,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+        ],
       });
-      this.logger.log('✅ Puppeteer browser inicializado');
+      this.logger.log(`✅ Puppeteer browser inicializado (chrome: ${executablePath || 'auto'})`);
     }
     return this.browser;
   }
