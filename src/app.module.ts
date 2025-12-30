@@ -23,7 +23,6 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { S3Module } from './s3/s3.module';
 import { SyncModule } from './sync/sync.module';
 import { TiendaModule } from './tienda/tienda.module';
-import { PreferenciasModule } from './preferencias/preferencias.module';
 import { MarcaModule } from './marca/marca.module';
 import { DisenoRubroModule } from './diseno-rubro/diseno-rubro.module';
 import { CombosModule } from './combos/combos.module';
@@ -55,7 +54,6 @@ import { PlanModule } from './plan/plan.module';
     S3Module,
     SyncModule,
     TiendaModule,
-    PreferenciasModule,
     MarcaModule,
     DisenoRubroModule,
     CombosModule,
