@@ -28,8 +28,8 @@ RUN apt-get update && apt-get install -y \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Instalar pnpm
-RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
+# Instalar pnpm globalmente en lugar de usar corepack (evita problemas de permisos)
+RUN npm install -g pnpm@9.12.2
 
 # Copiar package files y prisma schema
 COPY package.json pnpm-lock.yaml* ./
@@ -42,18 +42,21 @@ RUN pnpm install --no-frozen-lockfile
 COPY tsconfig*.json ./
 COPY src ./src
 
-# Build de la aplicación (usar pnpm exec para asegurar que nest esté disponible)
-RUN pnpm exec nest build
+# Build de la aplicación
+RUN npx nest build
+
+# Generar Prisma client después del build
+RUN npx prisma generate
 
 # Ahora configurar para producción
 ENV NODE_ENV=production
 
-# Usuario no root
+# Usuario no root (crear después del build para evitar problemas de permisos)
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 RUN chown -R appuser:appgroup /app
 
 USER appuser
 EXPOSE 4000
 
-# Ejecutar migraciones y iniciar aplicación (regenerar client justo antes de iniciar)
-CMD ["sh", "-c", "pnpm exec prisma generate && npx prisma migrate deploy && node dist/src/main.js"]
+# Ejecutar migraciones y iniciar aplicación
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
