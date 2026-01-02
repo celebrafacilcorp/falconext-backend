@@ -54,7 +54,13 @@ export class PdfGeneratorService {
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--disable-crash-reporter',
+          '--disable-extensions',
+          '--disable-features=VizDisplayCompositor',
+          '--no-zygote',
           '--single-process',
+          '--user-data-dir=/tmp/chrome-data',
         ],
       });
       this.logger.log(`✅ Puppeteer browser inicializado (chrome: ${executablePath || 'auto'})`);

@@ -29,6 +29,7 @@ import { CombosModule } from './combos/combos.module';
 import { ModificadoresModule } from './modificadores/modificadores.module';
 import { RubroModule } from './rubro/rubro.module';
 import { PlanModule } from './plan/plan.module';
+import { BannersModule } from './banners/banners.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { PlanModule } from './plan/plan.module';
     ModificadoresModule,
     RubroModule,
     PlanModule,
+    BannersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

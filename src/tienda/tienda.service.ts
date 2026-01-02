@@ -204,11 +204,34 @@ export class TiendaService {
             tieneTienda: true,
           },
         },
+        banners: {
+          where: { activo: true },
+          orderBy: { orden: 'asc' },
+        },
       },
     });
 
     if (!empresa) {
       throw new NotFoundException('Tienda no encontrada');
+    }
+
+    // Firmar banners si existen
+    if (empresa.banners && empresa.banners.length > 0) {
+      await Promise.all(
+        empresa.banners.map(async (banner) => {
+          if (banner.imagenUrl && banner.imagenUrl.includes('amazonaws.com')) {
+            const urlParts = banner.imagenUrl.split('amazonaws.com/');
+            if (urlParts.length > 1) {
+              const key = urlParts[1];
+              try {
+                banner.imagenUrl = await this.s3.getSignedGetUrl(key);
+              } catch (e) {
+                // Keep original
+              }
+            }
+          }
+        }),
+      );
     }
 
     if (!empresa.plan.tieneTienda) {
@@ -223,7 +246,67 @@ export class TiendaService {
     };
   }
 
-  async obtenerProductosTienda(slug: string, page = 1, limit = 30, search = '') {
+  async obtenerCategoriasTienda(slug: string) {
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { slugTienda: slug },
+      select: { id: true },
+    });
+
+    if (!empresa) {
+      throw new NotFoundException('Tienda no encontrada');
+    }
+
+    // Get all unique categories from active products with stock
+    const productos = await this.prisma.producto.findMany({
+      where: {
+        empresaId: empresa.id,
+        estado: 'ACTIVO',
+        stock: { gt: 0 },
+      },
+      select: {
+        categoria: { select: { nombre: true } },
+      },
+    });
+
+    const categorias = new Set<string>();
+    productos.forEach((p) => {
+      if (p.categoria?.nombre) {
+        categorias.add(p.categoria.nombre);
+      }
+    });
+
+    // Return array directly - global interceptor will wrap it
+    return Array.from(categorias).sort();
+  }
+
+  async obtenerRangoPreciosTienda(slug: string) {
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { slugTienda: slug },
+      select: { id: true },
+    });
+
+    if (!empresa) {
+      throw new NotFoundException('Tienda no encontrada');
+    }
+
+    // Get min and max prices from active products with stock
+    const result = await this.prisma.producto.aggregate({
+      where: {
+        empresaId: empresa.id,
+        estado: 'ACTIVO',
+        stock: { gt: 0 },
+      },
+      _min: { precioUnitario: true },
+      _max: { precioUnitario: true },
+    });
+
+    return {
+      min: Number(result._min.precioUnitario || 0),
+      max: Number(result._max.precioUnitario || 1000),
+    };
+  }
+
+  async obtenerProductosTienda(slug: string, page = 1, limit = 30, search = '', category = '', minPrice?: number, maxPrice?: number) {
     const empresa = await this.prisma.empresa.findUnique({
       where: { slugTienda: slug },
       select: { id: true },
@@ -266,6 +349,40 @@ export class TiendaService {
         { descripcion: { contains: term, mode: 'insensitive' } },
         { codigo: { contains: term, mode: 'insensitive' } },
       ];
+    }
+
+    // Filtro por rango de precios
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      const priceFilter: any = {};
+      if (minPrice !== undefined) priceFilter.gte = minPrice;
+      if (maxPrice !== undefined) priceFilter.lte = maxPrice;
+      wherePublicados.precioUnitario = priceFilter;
+    }
+
+    // Filtro por categorías - use OR conditions for case-insensitive matching
+    if (category && category.trim()) {
+      const cats = category.split(',').map((c) => c.trim()).filter(Boolean);
+      if (cats.length > 0) {
+        // Build OR conditions for each category name
+        const categoryConditions = cats.map((catName) => ({
+          categoria: {
+            nombre: { equals: catName, mode: 'insensitive' as const },
+          },
+        }));
+
+        // If there's already an OR condition (from search), we need to AND them
+        if (wherePublicados.OR) {
+          // Wrap existing OR in AND with category filter
+          const existingOR = wherePublicados.OR;
+          delete wherePublicados.OR;
+          wherePublicados.AND = [
+            { OR: existingOR },
+            { OR: categoryConditions },
+          ];
+        } else {
+          wherePublicados.OR = categoryConditions;
+        }
+      }
     }
 
     const countPublicados = await this.prisma.producto.count({ where: wherePublicados });
@@ -313,6 +430,38 @@ export class TiendaService {
         { codigo: { contains: term, mode: 'insensitive' } },
       ];
     }
+
+    // Filtro por rango de precios (Fallback)
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      const priceFilter: any = {};
+      if (minPrice !== undefined) priceFilter.gte = minPrice;
+      if (maxPrice !== undefined) priceFilter.lte = maxPrice;
+      whereActivos.precioUnitario = priceFilter;
+    }
+
+    // Filtro por categorías (Fallback) - use OR conditions for case-insensitive matching
+    if (category && category.trim()) {
+      const cats = category.split(',').map((c) => c.trim()).filter(Boolean);
+      if (cats.length > 0) {
+        const categoryConditions = cats.map((catName) => ({
+          categoria: {
+            nombre: { equals: catName, mode: 'insensitive' as const },
+          },
+        }));
+
+        if (whereActivos.OR) {
+          const existingOR = whereActivos.OR;
+          delete whereActivos.OR;
+          whereActivos.AND = [
+            { OR: existingOR },
+            { OR: categoryConditions },
+          ];
+        } else {
+          whereActivos.OR = categoryConditions;
+        }
+      }
+    }
+
     const total = await this.prisma.producto.count({ where: whereActivos });
     const itemsRaw = await this.prisma.producto.findMany({
       where: whereActivos,
@@ -587,8 +736,10 @@ export class TiendaService {
       });
     }
 
-    const igv = subtotal * 0.18;
-    const total = subtotal + igv + costoEnvio;
+    // Los precios ya incluyen IGV, así que extraemos el IGV del subtotal
+    // IGV = Subtotal - (Subtotal / 1.18)
+    const igv = subtotal - (subtotal / 1.18);
+    const total = subtotal + costoEnvio;
 
     // Generar un código de seguimiento único y corto
     const codigoSeguimiento = `PT-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
@@ -970,7 +1121,39 @@ export class TiendaService {
       throw new NotFoundException('Pedido no encontrado');
     }
 
-    return pedido;
+    // Firmar URLs de S3 para las imágenes de productos
+    const pedidoConImagenesFirmadas = {
+      ...pedido,
+      items: await Promise.all(
+        pedido.items.map(async (item) => ({
+          ...item,
+          producto: item.producto
+            ? {
+              ...item.producto,
+              imagenUrl: item.producto.imagenUrl
+                ? await this.signS3UrlIfNeeded(item.producto.imagenUrl)
+                : null,
+            }
+            : null,
+        }))
+      ),
+    };
+
+    return pedidoConImagenesFirmadas;
+  }
+
+  private async signS3UrlIfNeeded(url: string | null): Promise<string | null> {
+    if (!url) return null;
+    try {
+      const idx = url.indexOf('amazonaws.com/');
+      if (idx === -1) return url; // No es URL de S3, devolver tal cual
+      const key = url.substring(idx + 'amazonaws.com/'.length);
+      if (!key) return url;
+      return (await this.s3.getSignedGetUrl(key, 3600)) || url;
+    } catch (error) {
+      console.error('Error signing S3 URL:', error);
+      return url; // Fallback a URL original
+    }
   }
 
   async obtenerHistorialEstados(empresaId: number, pedidoId: number) {

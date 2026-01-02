@@ -494,13 +494,14 @@ export class ProductoPlantillaService {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
             const axios = require('axios');
 
-            // Buscar imagen
-            console.log(`[MagicGallery] Searching for: ${nombre}`);
+            // Buscar imagen (priorizar PNG y fondo transparente)
+            const searchQuery = `${nombre} png transparent filetype:png`;
+            console.log(`[MagicGallery] Searching for: ${searchQuery}`);
             let results: any = {};
             try {
                 results = await GOOGLE_IMG_SCRAP({
-                    search: nombre,
-                    limit: 5,
+                    search: searchQuery,
+                    limit: 8,
                     safeSearch: false
                 });
             } catch (searchError: any) {
@@ -510,18 +511,26 @@ export class ProductoPlantillaService {
 
             // Validar resultado
             if (results && results.result && Array.isArray(results.result) && results.result.length > 0) {
-                // Tomar la primera imagen válida (preferir HTTPS)
-                const image = results.result.find((img: any) => img.url && img.url.startsWith('http'));
+                // Filtrar solo las que tengan URL http/https
+                const candidates = results.result.filter((img: any) => img.url && img.url.startsWith('http'));
 
-                if (image && image.url) {
-                    console.log(`[MagicGallery] Found URL: ${image.url}. Downloading...`);
+                if (candidates.length === 0) {
+                    return { success: false, message: 'No se encontraron candidatas válidas (http/s).' };
+                }
+
+                // Iterar sobre candidatos hasta tener éxito
+                for (let i = 0; i < Math.min(candidates.length, 5); i++) {
+                    const image = candidates[i];
+                    console.log(`[MagicGallery] [${i + 1}/${Math.min(candidates.length, 5)}] Trying URL: ${image.url}`);
 
                     try {
-                        // 1. Descargar imagen (con timeout y user-agent real)
                         const response = await axios.get(image.url, {
                             responseType: 'arraybuffer',
-                            timeout: 8000,
-                            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+                            timeout: 5000,
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                            }
                         });
 
                         if (response.status !== 200) throw new Error(`Status ${response.status}`);
@@ -529,29 +538,43 @@ export class ProductoPlantillaService {
                         const buffer = Buffer.from(response.data);
                         if (buffer.length < 1024) throw new Error('Image too small (<1KB)');
 
-                        // 2. Subir a S3
-                        // Generar key única limpia
+                        let processedBuffer = buffer;
+                        try {
+                            // @ts-ignore
+                            const sharp = (await import('sharp')).default as any;
+                            processedBuffer = await sharp(buffer)
+                                .resize(500, 500, {
+                                    fit: 'contain',
+                                    background: { r: 0, g: 0, b: 0, alpha: 0 }
+                                })
+                                .webp({ quality: 85 })
+                                .toBuffer();
+                        } catch (sharpError) {
+                            console.warn(`[MagicGallery] Sharp err: ${sharpError}`);
+                        }
+
                         const cleanName = nombre.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 50);
                         const key = `productos/plantillas/${id}-${cleanName}-${Date.now()}.webp`;
 
-                        console.log(`[MagicGallery] Uploading to S3 key: ${key}`);
-                        const s3Url = await this.s3Service.uploadImage(buffer, key);
+                        console.log(`[MagicGallery] Success! Uploading to S3: ${key}`);
+                        const s3Url = await this.s3Service.uploadImage(processedBuffer, key);
 
-                        // 3. Actualizar BD con URL de S3
+                        // Firmar la URL inmediatamente para que el frontend pueda renderizarla
+                        const signedUrl = await this.s3Service.getSignedGetUrl(key, 3600);
+
                         const updated = await this.prisma.productoPlantilla.update({
                             where: { id },
                             data: { imagenUrl: s3Url }
                         });
 
-                        return { success: true, url: s3Url, producto: updated };
+                        return { success: true, url: signedUrl || s3Url, producto: updated };
 
-                    } catch (downloadError: any) {
-                        console.error(`[MagicGallery] Error downloading/uploading image: ${downloadError.message}`);
-                        // Fallback: Si falla la descarga, guardar la URL externa (aunque sea hotlink)
-                        // o retornar error. Decidimos retornar error para no ensuciar con links rotos.
-                        return { success: false, message: 'Error al descargar/procesar la imagen remota' };
+                    } catch (err: any) {
+                        console.warn(`[MagicGallery] Candidate ${i + 1} failed: ${err.message}`);
                     }
                 }
+
+                return { success: false, message: 'No se pudo descargar ninguna imagen válida tras varios intentos.' };
             }
 
             return { success: false, message: 'No se encontraron imágenes válidas' };

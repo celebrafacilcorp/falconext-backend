@@ -59,4 +59,55 @@ export class CreateProductoDto {
   @IsOptional()
   @IsString()
   imagenUrl?: string;
+
+  // 🆕 FARMACIA/BOTICA
+  @IsOptional()
+  @IsString()
+  principioActivo?: string;
+
+  @IsOptional()
+  @IsString()
+  laboratorio?: string;
+
+  @IsOptional()
+  @IsString()
+  concentracion?: string;
+
+  @IsOptional()
+  @IsString()
+  presentacion?: string;
+
+  // 🆕 BODEGA/SUPERMARKET
+  @IsOptional()
+  @IsString()
+  codigoBarras?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  pesoGramos?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  volumenMl?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  precioOferta?: number;
+
+  // 🆕 FRACCIONAMIENTO
+  @IsOptional()
+  @IsString()
+  unidadCompra?: string;
+
+  @IsOptional()
+  @IsString()
+  unidadVenta?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  factorConversion?: number;
 }

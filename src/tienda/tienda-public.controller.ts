@@ -21,8 +21,29 @@ export class TiendaPublicController {
     @Query('page') page = '1',
     @Query('limit') limit = '30',
     @Query('search') search = '',
+    @Query('category') category = '',
+    @Query('minPrice') minPrice = '',
+    @Query('maxPrice') maxPrice = '',
   ) {
-    return this.tiendaService.obtenerProductosTienda(slug, Number(page) || 1, Number(limit) || 30, search);
+    return this.tiendaService.obtenerProductosTienda(
+      slug,
+      Number(page) || 1,
+      Number(limit) || 30,
+      search,
+      category,
+      minPrice ? Number(minPrice) : undefined,
+      maxPrice ? Number(maxPrice) : undefined,
+    );
+  }
+
+  @Get(':slug/categories')
+  async obtenerCategorias(@Param('slug') slug: string) {
+    return this.tiendaService.obtenerCategoriasTienda(slug);
+  }
+
+  @Get(':slug/price-range')
+  async obtenerRangoPrecios(@Param('slug') slug: string) {
+    return this.tiendaService.obtenerRangoPreciosTienda(slug);
   }
 
   @Get(':slug/products/:id')

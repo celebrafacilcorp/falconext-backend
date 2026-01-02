@@ -184,6 +184,31 @@ model Producto {
   destacado           Boolean              @default(false) 
   ratingAvg           Decimal?             @default(0) 
   ratingCount         Int?                 @default(0) 
+  
+  // 🆕 FARMACIA/BOTICA
+  principioActivo     String?
+  laboratorio         String?
+  concentracion       String?
+  presentacion        String?
+  requiereReceta      Boolean              @default(false)
+  refrigerado         Boolean              @default(false)
+  controlado          Boolean              @default(false)
+  codigoDigemid       String?              @unique
+  
+  // 🆕 BODEGA/SUPERMARKET
+  codigoBarras        String?
+  pesoGramos          Decimal?
+  volumenMl           Decimal?
+  ofertaActiva        Boolean              @default(false)
+  precioOferta        Decimal?
+  fechaInicioOferta   DateTime?
+  fechaFinOferta      DateTime?
+  
+  // 🆕 FRACCIONAMIENTO (FARMACIA/BODEGA)
+  unidadCompra        String?
+  unidadVenta         String?
+  factorConversion    Int                  @default(1)
+  
   detalleComprobantes DetalleComprobante[]
   movimientosKardex   MovimientoKardex[]
   categoria           Categoria?           @relation(fields: [categoriaId], references: [id])
@@ -194,6 +219,7 @@ model Producto {
   galeria             GaleriaProducto[]    
   comboItems          ComboItem[]          
   gruposModificadores ProductoGrupoModificador[] 
+  lotes               ProductoLote[]
 
   @@unique([empresaId, codigo])
   @@index([empresaId, publicarEnTienda])
@@ -373,6 +399,7 @@ model MovimientoKardex {
   empresa          Empresa        @relation(fields: [empresaId], references: [id])
   producto         Producto       @relation(fields: [productoId], references: [id])
   usuario          Usuario?       @relation(fields: [usuarioId], references: [id])
+  movimientoLote   MovimientoKardexLote?
 
   @@index([productoId, fecha])
   @@index([empresaId, fecha])
@@ -814,5 +841,50 @@ model ProductoPlantilla {
   @@index([rubroId])
   @@index([nombre])
   @@map("producto_plantillas")
+}
+
+// 🆕 GESTIÓN DE LOTES (Para Farmacias)
+model ProductoLote {
+  id                Int       @id @default(autoincrement())
+  productoId        Int
+  producto          Producto  @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  
+  lote              String
+  fechaVencimiento  DateTime
+  fechaIngreso      DateTime  @default(now())
+  
+  stockActual       Int       @default(0)
+  stockInicial      Int       @default(0)
+  
+  costoUnitario     Decimal?
+  proveedor         String?
+  
+  activo            Boolean   @default(true)
+  
+  creadoEn          DateTime  @default(now())
+  actualizadoEn     DateTime  @updatedAt
+  
+  movimientosKardex MovimientoKardexLote[]
+  
+  @@index([productoId, fechaVencimiento])
+  @@index([productoId, activo])
+  @@unique([productoId, lote])
+  @@map("producto_lotes")
+}
+
+model MovimientoKardexLote {
+  id               Int               @id @default(autoincrement())
+  productoLoteId   Int
+  lote             ProductoLote      @relation(fields: [productoLoteId], references: [id], onDelete: Cascade)
+  
+  movimientoId     Int               @unique
+  movimiento       MovimientoKardex  @relation(fields: [movimientoId], references: [id], onDelete: Cascade)
+  
+  cantidad         Int
+  stockAnterior    Int
+  stockActual      Int
+  
+  @@index([productoLoteId])
+  @@map("movimiento_kardex_lotes")
 }
 

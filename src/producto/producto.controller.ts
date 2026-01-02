@@ -27,13 +27,16 @@ import { UpdateProductoDto } from './dto/update-producto.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { imageUploadOptions } from '../common/utils/multer.config';
 import { GeminiService } from '../gemini/gemini.service';
+import { ProductoLoteService } from './producto-lote.service';
+import { CrearLoteDto } from './dto/lote.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('producto')
 export class ProductoController {
   constructor(
     private readonly service: ProductoService,
-    private readonly geminiService: GeminiService
+    private readonly geminiService: GeminiService,
+    private readonly loteService: ProductoLoteService,
   ) { }
 
   @Post('crear')
@@ -70,7 +73,9 @@ export class ProductoController {
       const results = await GOOGLE_IMG_SCRAP({
         search: body.nombre,
         limit: 8,
-        safeSearch: false
+        safeSearch: false,
+        // @ts-ignore
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       });
 
       if (results && results.result && Array.isArray(results.result) && results.result.length > 0) {
@@ -81,9 +86,34 @@ export class ProductoController {
           return { success: true, url: image.url };
         }
       }
-      return { success: false, message: 'No se encontraron imágenes' };
+      throw new Error('No images found via Google');
     } catch (e: any) {
-      console.error('Error generating image:', e);
+      console.warn('Google Image Search failed, trying Bing fallback...', e.message);
+
+      try {
+        // Fallback: Bing Images
+        const axios = (await import('axios')).default;
+        const query = encodeURIComponent(body.nombre);
+        const { data } = await axios.get(`https://www.bing.com/images/search?q=${query}&first=1`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          }
+        });
+
+        // Extract image URLs from Bing HTML (looking for murl)
+        const matches = data.match(/murl&quot;:&quot;(http.*?)&quot;/g);
+        if (matches && matches.length > 0) {
+          // Extract URL from the first match: murl&quot;:&quot;URL&quot;
+          const firstMatch = matches[0];
+          const rawUrl = firstMatch.replace('murl&quot;:&quot;', '').replace('&quot;', '');
+          if (rawUrl) {
+            return { success: true, url: rawUrl };
+          }
+        }
+      } catch (bingError) {
+        console.error('Bing fallback also failed:', bingError);
+      }
+
       return { success: false, message: e.message || 'Error interno al buscar imagen' };
     }
   }
@@ -288,5 +318,69 @@ export class ProductoController {
     });
     res.locals.message = 'Productos listados correctamente';
     return resultado;
+  }
+
+  // ==================== GESTIÓN DE LOTES (Farmacia) ====================
+
+  @Get(':id/lotes')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  async obtenerLotesProducto(
+    @Param('id', ParseIntPipe) id: number,
+    @User() user: any,
+  ) {
+    return this.loteService.obtenerLotesProducto(id, user.empresaId);
+  }
+
+  @Get(':id/lotes/disponibles')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  async obtenerLotesDisponibles(
+    @Param('id', ParseIntPipe) id: number,
+    @User() user: any,
+  ) {
+    return this.loteService.obtenerLotesDisponibles(id, user.empresaId);
+  }
+
+  @Post('lotes')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  async crearLote(
+    @Body() dto: CrearLoteDto,
+    @User() user: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const lote = await this.loteService.crearLote({
+      ...dto,
+      empresaId: user.empresaId,
+      fechaVencimiento: new Date(dto.fechaVencimiento),
+    });
+    res.locals.message = 'Lote creado correctamente';
+    return lote;
+  }
+
+  @Get('lotes/por-vencer')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  async obtenerProductosPorVencer(
+    @User() user: any,
+    @Query('dias') dias?: string,
+  ) {
+    const diasAnticipacion = dias ? parseInt(dias) : 30;
+    return this.loteService.obtenerProductosPorVencer(user.empresaId, diasAnticipacion);
+  }
+
+  @Get('lotes/vencidos')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  async obtenerLotesVencidos(@User() user: any) {
+    return this.loteService.obtenerLotesVencidos(user.empresaId);
+  }
+
+  @Patch('lotes/:id/desactivar')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  async desactivarLote(
+    @Param('id', ParseIntPipe) id: number,
+    @User() user: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.loteService.desactivarLote(id, user.empresaId);
+    res.locals.message = 'Lote desactivado correctamente';
+    return { success: true };
   }
 }
