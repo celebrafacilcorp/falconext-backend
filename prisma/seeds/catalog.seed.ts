@@ -24,13 +24,64 @@ export const catalogoFerreteria = [
 ];
 
 export const catalogoFarmacia = [
-    { nombre: 'Paracetamol 500mg', descripcion: 'Caja x 100 tabletas', precioSugerido: 15.00, unidadConteo: 'CJA' },
-    { nombre: 'Ibuprofeno 400mg', descripcion: 'Caja x 10 tabletas', precioSugerido: 5.00, unidadConteo: 'CJA' },
-    { nombre: 'Amoxicilina 500mg', descripcion: 'Generico, tira x 10', precioSugerido: 8.00, unidadConteo: 'NIU' },
+    // ANALGÉSICOS Y ANTIINFLAMATORIOS
+    { nombre: 'Paracetamol 500mg', descripcion: 'Caja x 100 tabletas (Generico)', precioSugerido: 10.00, unidadConteo: 'CJA' },
+    { nombre: 'Panadol Forte 500mg', descripcion: 'Caja x 100 tabletas', precioSugerido: 80.00, unidadConteo: 'CJA' },
+    { nombre: 'Ibuprofeno 400mg', descripcion: 'Caja x 100 tabletas (Generico)', precioSugerido: 12.00, unidadConteo: 'CJA' },
+    { nombre: 'Doloflam 550mg', descripcion: 'Naproxeno Sodico, Caja x 100', precioSugerido: 60.00, unidadConteo: 'CJA' },
+    { nombre: 'Aspirina 100mg', descripcion: 'Caja x 100 tabletas', precioSugerido: 45.00, unidadConteo: 'CJA' },
+    { nombre: 'Apronax 275mg', descripcion: 'Caja x 20 tabletas', precioSugerido: 25.00, unidadConteo: 'CJA' },
+
+    // ANTIBIÓTICOS (Solo Venta con Receta)
+    { nombre: 'Amoxicilina 500mg', descripcion: 'Caja x 100 cápsulas', precioSugerido: 30.00, unidadConteo: 'CJA' },
+    { nombre: 'Azitromicina 500mg', descripcion: 'Caja x 5 tabletas', precioSugerido: 15.00, unidadConteo: 'CJA' },
+    { nombre: 'Ciprofloxacino 500mg', descripcion: 'Caja x 100 tabletas', precioSugerido: 35.00, unidadConteo: 'CJA' },
+
+    // RESPIRATORIO Y ALERGIAS
+    { nombre: 'Cetirizina 10mg', descripcion: 'Caja x 100 tabletas', precioSugerido: 20.00, unidadConteo: 'CJA' },
+    { nombre: 'Loratadina 10mg', descripcion: 'Caja x 100 tabletas', precioSugerido: 18.00, unidadConteo: 'CJA' },
+    { nombre: 'Jarabe para la tos Abrilar', descripcion: 'Frasco 100ml', precioSugerido: 35.00, unidadConteo: 'NIU' },
+    { nombre: 'Vick Vaporub 50g', descripcion: 'Ungüento tópico', precioSugerido: 12.00, unidadConteo: 'NIU' },
+
+    // ESTOMACALES
+    { nombre: 'Omeprazol 20mg', descripcion: 'Caja x 100 cápsulas', precioSugerido: 15.00, unidadConteo: 'CJA' },
+    { nombre: 'Sal de Andrews', descripcion: 'Caja x 50 sobres', precioSugerido: 25.00, unidadConteo: 'CJA' },
+    { nombre: 'Bismutol', descripcion: 'Frasco 150ml', precioSugerido: 18.00, unidadConteo: 'NIU' },
+    { nombre: 'Gastrozepina', descripcion: 'Caja x 30 tabletas', precioSugerido: 40.00, unidadConteo: 'CJA' },
+
+    // PRIMEROS AUXILIOS
     { nombre: 'Alcohol Medicinal 96° 1L', descripcion: 'Botella 1 litro', precioSugerido: 12.00, unidadConteo: 'NIU' },
-    { nombre: 'Algodón Hidrófilo 100g', descripcion: 'Bolsa 100g', precioSugerido: 3.50, unidadConteo: 'NIU' },
+    { nombre: 'Agua Oxigenada 120ml', descripcion: 'Frasco', precioSugerido: 3.00, unidadConteo: 'NIU' },
+    { nombre: 'Algodón Hidrófilo 50g', descripcion: 'Bolsa pequeña', precioSugerido: 2.50, unidadConteo: 'NIU' },
     { nombre: 'Gasa Estéril 10x10', descripcion: 'Sobre individual', precioSugerido: 1.00, unidadConteo: 'NIU' },
-    { nombre: 'Suero Rehidratante Electrolight', descripcion: 'Sabor Fresa 1L', precioSugerido: 6.50, unidadConteo: 'NIU' },
+    { nombre: 'Curitas Band-Aid', descripcion: 'Caja x 100 unidades', precioSugerido: 15.00, unidadConteo: 'CJA' },
+    { nombre: 'Venda Elástica 4x5', descripcion: 'Unidad', precioSugerido: 5.00, unidadConteo: 'NIU' },
+
+    // CUIDADO PERSONAL E HIGIENE
+    { nombre: 'Pasta Dental Colgate Total 12', descripcion: 'Tubo 100ml', precioSugerido: 8.50, unidadConteo: 'NIU' },
+    { nombre: 'Cepillo Dental Oral-B medio', descripcion: 'Unidad', precioSugerido: 5.00, unidadConteo: 'NIU' },
+    { nombre: 'Jabón Antibacterial Protex', descripcion: 'Barra 100g', precioSugerido: 3.50, unidadConteo: 'NIU' },
+    { nombre: 'Shampoo H&S Control Caspa', descripcion: 'Frasco 375ml', precioSugerido: 18.00, unidadConteo: 'NIU' },
+    { nombre: 'Desodorante Rexona Clinical', descripcion: 'Barra', precioSugerido: 22.00, unidadConteo: 'NIU' },
+    { nombre: 'Toallas Higiénicas Nosotras', descripcion: 'Paquete x 10', precioSugerido: 6.50, unidadConteo: 'NIU' },
+
+    // BEBÉS Y MATERNIDAD
+    { nombre: 'Pañales Huggies Talla M', descripcion: 'Paquete x 50 unidades', precioSugerido: 45.00, unidadConteo: 'NIU' },
+    { nombre: 'Pañales Pampers RN', descripcion: 'Paquete x 20 unidades', precioSugerido: 25.00, unidadConteo: 'NIU' },
+    { nombre: 'Fórmula Enfamil 1', descripcion: 'Lata 400g', precioSugerido: 65.00, unidadConteo: 'NIU' },
+    { nombre: 'Toallitas Húmedas Huggies', descripcion: 'Paquete x 80', precioSugerido: 10.00, unidadConteo: 'NIU' },
+    { nombre: 'Shampoo Johnson Baby', descripcion: 'Frasco 400ml', precioSugerido: 15.00, unidadConteo: 'NIU' },
+
+    // VITAMINAS Y SUPLEMENTOS
+    { nombre: 'Vitamina C 1000mg', descripcion: 'Tubo x 10 efervescentes', precioSugerido: 12.00, unidadConteo: 'NIU' },
+    { nombre: 'Neurobion', descripcion: 'Caja x 3 ampollas', precioSugerido: 35.00, unidadConteo: 'CJA' },
+    { nombre: 'Ensure Advance Vainilla', descripcion: 'Lata 400g', precioSugerido: 68.00, unidadConteo: 'NIU' },
+    { nombre: 'Magnesol', descripcion: 'Caja x 33 sobres', precioSugerido: 30.00, unidadConteo: 'CJA' },
+
+    // DERMOCOSMÉTICA
+    { nombre: 'Bloqueador Solar Eucerin 50+', descripcion: 'Frasco 50ml', precioSugerido: 85.00, unidadConteo: 'NIU' },
+    { nombre: 'Agua Micelar Garnier', descripcion: 'Frasco 400ml', precioSugerido: 25.00, unidadConteo: 'NIU' },
+    { nombre: 'Crema Hidratante Nivea', descripcion: 'Lata azul 150ml', precioSugerido: 12.00, unidadConteo: 'NIU' },
 ];
 
 export async function seedCatalog(prisma: PrismaClient) {

@@ -55,7 +55,7 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.setGlobalPrefix('api');
 
-  const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
+  const PORT = process.env.PORT ? Number(process.env.PORT) : 4001;
 
   // Auto-initialize (Seed) if empty
   try {

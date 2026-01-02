@@ -5,13 +5,177 @@ import { CreateProductoDto } from './dto/create-producto.dto'; // Use if needed,
 
 import { S3Service } from '../s3/s3.service';
 import { EstadoType } from '@prisma/client';
+import { GeminiService } from '../gemini/gemini.service';
 
 @Injectable()
 export class ProductoPlantillaService {
     constructor(
         private prisma: PrismaService,
-        private s3Service: S3Service
+        private s3Service: S3Service,
+        private geminiService: GeminiService
     ) { }
+
+    async generarPropuestaIA(rubroId: number, query: string) {
+        // 1. Obtener nombre del rubro
+        const rubro = await this.prisma.rubro.findUnique({
+            where: { id: rubroId }
+        });
+        if (!rubro) throw new NotFoundException('Rubro no encontrado');
+
+        // 2. Generar productos con Gemini
+        const productosGenerados = await this.geminiService.generarProductos(rubro.nombre, query);
+
+        // 3. Asignar imágenes automáticamente en paralelo
+        // Limitamos a 5 concurrentes para no saturar si son muchos
+        const CONCURRENCY_LIMIT = 5;
+        const productosConImagen: any[] = [];
+
+        for (let i = 0; i < productosGenerados.length; i += CONCURRENCY_LIMIT) {
+            const chunk = productosGenerados.slice(i, i + CONCURRENCY_LIMIT);
+            const chunkResults = await Promise.all(chunk.map(async (prod: any) => {
+                try {
+                    // Buscar imagen referencial (URL directa de google o placeholder)
+                    // No persistimos en S3 aun para que sea rapido, usamos la URL original si es http
+                    // O si queremos calidad, podemos intentar obtener una URL valida.
+                    const imageUrl = await this.buscarImagenWeb(prod.nombre);
+                    return { ...prod, imagenUrl: imageUrl };
+                } catch (e) {
+                    return prod;
+                }
+            }));
+            productosConImagen.push(...chunkResults);
+        }
+
+        return productosConImagen;
+    }
+
+    // Helper rapido para buscar imagen sin guardar en S3 (solo URL externa)
+    async buscarImagenWeb(nombre: string): Promise<string | null> {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const { GOOGLE_IMG_SCRAP } = require('google-img-scrap');
+
+            const results = await GOOGLE_IMG_SCRAP({
+                search: `${nombre} product`,
+                limit: 5,
+                safeSearch: false
+            });
+
+            if (results && results.result && results.result.length > 0) {
+                // Preferir HTTPS
+                const valid = results.result.find((img: any) => img.url && img.url.startsWith('https'));
+                return valid ? valid.url : results.result[0].url;
+            }
+            return null;
+        } catch (error) {
+            console.warn(`Error buscando imagen web para ${nombre}`, error);
+            return null;
+        }
+    }
+
+    async importarDesdeData(empresaId: number, productos: any[]) {
+        const empresa = await this.prisma.empresa.findUnique({
+            where: { id: empresaId },
+        });
+        if (!empresa) throw new NotFoundException('Empresa no encontrada');
+
+        const resultados: any[] = [];
+        let importedCount = 0;
+
+        for (const prod of productos) {
+            // Generar código único básico si no viene
+            const codigoBase = prod.codigo || (prod.nombre.substring(0, 3).toUpperCase() + Math.floor(Math.random() * 1000));
+
+            // 1. Manejo de Categoría
+            let categoriaId: number | null = null;
+            if (prod.categoria && prod.categoria.trim() !== '') {
+                const nombreCat = prod.categoria.trim();
+                const catExistente = await this.prisma.categoria.findFirst({
+                    where: {
+                        empresaId: empresaId,
+                        nombre: { equals: nombreCat }
+                    }
+                });
+
+                if (catExistente) {
+                    categoriaId = catExistente.id;
+                } else {
+                    const nuevaCat = await this.prisma.categoria.create({
+                        data: { empresaId, nombre: nombreCat }
+                    });
+                    categoriaId = nuevaCat.id;
+                }
+            }
+
+            // 2. Manejo de Marca
+            let marcaId: number | null = null;
+            if (prod.marca && prod.marca.trim() !== '') {
+                const nombreMarca = prod.marca.trim();
+                const marcaExistente = await this.prisma.marca.findFirst({
+                    where: {
+                        empresaId: empresaId,
+                        nombre: { equals: nombreMarca }
+                    }
+                });
+
+                if (marcaExistente) {
+                    marcaId = marcaExistente.id;
+                } else {
+                    const nuevaMarca = await this.prisma.marca.create({
+                        data: { empresaId, nombre: nombreMarca }
+                    });
+                    marcaId = nuevaMarca.id;
+                }
+            }
+
+            // Mapear unidad
+            const unidad = await this.prisma.unidadMedida.findFirst({ where: { codigo: prod.unidadConteo } })
+                || await this.prisma.unidadMedida.findFirst();
+
+            try {
+                // Verificar si código ya existe en empresa para no duplicar
+                const exists = await this.prisma.producto.findFirst({
+                    where: { empresaId, codigo: codigoBase }
+                });
+
+                if (!exists) {
+                    const nuevoProducto = await this.prisma.producto.create({
+                        data: {
+                            empresaId,
+                            codigo: codigoBase,
+                            // Ojo: Schema tiene 'descripcion' como nombre comercial y 'descripcionLarga' como detalle
+                            // prod.nombre -> descripcion (campo principal visual)
+                            // prod.descripcion -> descripcionLarga
+                            descripcion: prod.nombre,
+                            descripcionLarga: prod.descripcion,
+                            imagenUrl: prod.imagenUrl || 'https://via.placeholder.com/150', // Placeholder si no hay imagen
+                            precioUnitario: Number(prod.precioSugerido) || 0,
+                            valorUnitario: (Number(prod.precioSugerido) || 0) / 1.18,
+                            stock: 50, // Stock inicial por defecto
+                            stockMinimo: 5,
+                            unidadMedidaId: unidad?.id || 1,
+                            categoriaId: categoriaId,
+                            marcaId: marcaId,
+                            tipoAfectacionIGV: '10',
+                            igvPorcentaje: 18.00,
+                            estado: 'ACTIVO',
+                            publicarEnTienda: true,
+                        },
+                    });
+                    resultados.push(nuevoProducto);
+                    importedCount++;
+                }
+            } catch (e) {
+                console.error('Error importando producto IA', e);
+            }
+        }
+
+        return {
+            message: 'Importación IA completada',
+            imported: importedCount,
+            total: productos.length
+        };
+    }
 
     async subirImagen(id: number, file: { buffer: Buffer, mimetype: string }) {
         const plantilla = await this.prisma.productoPlantilla.findUnique({ where: { id } });
@@ -263,8 +427,8 @@ export class ProductoPlantillaService {
         if (rubroId) where.rubroId = rubroId;
         if (search) {
             where.OR = [
-                { nombre: { contains: search } },
-                { descripcion: { contains: search } },
+                { nombre: { contains: search, mode: 'insensitive' } },
+                { descripcion: { contains: search, mode: 'insensitive' } },
             ];
         }
 
@@ -495,7 +659,7 @@ export class ProductoPlantillaService {
             const axios = require('axios');
 
             // Buscar imagen (priorizar PNG y fondo transparente)
-            const searchQuery = `${nombre} png transparent filetype:png`;
+            const searchQuery = `${nombre} product`;
             console.log(`[MagicGallery] Searching for: ${searchQuery}`);
             let results: any = {};
             try {

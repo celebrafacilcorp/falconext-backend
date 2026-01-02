@@ -1,9 +1,9 @@
 -- ============================================================
--- MIGRACIÓN SEGURA V4: Quoted Identifiers Correctos
+-- MIGRACIÓN SEGURA V5: Fix Sequence & Quoted Identifiers
 -- ============================================================
--- Corregido: Usa "Rubro" (con comillas) porque Postgres es case-sensitive
--- con identificadores quoted.
--- ============================================================
+-- 0. Corregir desincronización de IDs (Error P2002)
+-- Esto asegura que el autoincrement no use un ID que ya existe
+SELECT setval(pg_get_serial_sequence('"Rubro"', 'id'), COALESCE(MAX(id), 0) + 1, false) FROM "Rubro";
 
 -- 1. Agregar nuevos rubros (Insertar solo si no existen)
 INSERT INTO "Rubro" (nombre)

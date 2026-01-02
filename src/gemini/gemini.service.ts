@@ -184,4 +184,60 @@ RESPUESTA (Texto plano, sin markdown de código a menos que sea necesario):`;
             return `Error técnico (${error.message}). Por favor verifica la API Key y el modelo.`;
         }
     }
+    /**
+     * Genera una lista de productos realistas basada en un query y rubro
+     */
+    async generarProductos(rubro: string, query: string): Promise<any[]> {
+        if (!this.model) {
+            throw new Error('Gemini AI no está configurado');
+        }
+
+        const prompt = `
+        Eres un experto en gestión de inventarios para negocios en Perú.
+        
+        CONTEXTO:
+        Rubro del negocio: "${rubro}"
+        Solicitud del usuario: "${query}"
+
+        TAREA:
+        Genera una lista de 10 a 15 productos REALES y ESPECÍFICOS que coincidan con la solicitud.
+        
+        REQUISITOS OBLIGATORIOS:
+        1. **Precios Reales:** Usa precios de mercado peruano (Soles) actuales.
+        2. **Marcas Reales:** 
+           - Si es Farmacia, usa laboratorios reales (Portugal, Genfar, Bayer, Pfizer, etc.) y marcas comerciales (Panadol, Apronax).
+           - Si es Bodega, usa marcas como Gloria, Alicorp, etc.
+           - Si es Ferretería, usa Pavco, Aceros Arequipa, etc.
+        3. **Formato de Presentación:**
+           - Farmacia: "Caja x 100 tabletas", "Frasco 120ml", etc.
+           - Bodega: "Botella 500ml", "Paquete 1kg".
+        4. **Unidades:** Usa códigos SUNAT si es posible (NIU, CJA, BG, LTR) o genéricos.
+        
+        FORMATO DE RESPUESTA (JSON PURO ARRAY):
+        [
+            {
+                "nombre": "Nombre completo producto",
+                "descripcion": "Presentación y detalles",
+                "precioSugerido": 25.50,
+                "unidadConteo": "CJA", 
+                "categoria": "Categoría sugerida",
+                "marca": "Laboratorio/Marca",
+                "codigo": "SUGERIDO-001"
+            }
+        ]
+        
+        IMPORTANTE: Responde SOLO con el array JSON. Sin markdown, sin explicaciones.
+        `;
+
+        try {
+            const result = await this.model.generateContent(prompt);
+            const text = result.response.text().trim();
+            // Limpiar markdown
+            const jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            return JSON.parse(jsonText);
+        } catch (error: any) {
+            this.logger.error('Error generando productos con Gemini', error);
+            throw new Error('Error generando productos: ' + error.message);
+        }
+    }
 }

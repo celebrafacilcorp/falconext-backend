@@ -58,8 +58,20 @@ export class ProductoPlantillaController {
 
     @Post('importar-de-empresa')
     @UseGuards(JwtAuthGuard)
-    async importarDeEmpresa(@Body() body: { empresaId: number, rubroId: number }) {
-        return this.plantillaService.importarDeEmpresa(Number(body.empresaId), Number(body.rubroId));
+    async importarDeEmpresa(@Request() req, @Body() body: { productoEmpresaId: number }) {
+        return this.plantillaService.importarDeEmpresa(req.user.empresaId, body.productoEmpresaId);
+    }
+
+    @Post('generar-ia')
+    @UseGuards(JwtAuthGuard)
+    async generarIA(@Body() body: { query: string, rubroId: number }) {
+        return this.plantillaService.generarPropuestaIA(body.rubroId, body.query);
+    }
+
+    @Post('importar-data')
+    @UseGuards(JwtAuthGuard)
+    async importarData(@Request() req, @Body() body: { productos: any[] }) {
+        return this.plantillaService.importarDesdeData(req.user.empresaId, body.productos);
     }
 
     @Post('importar-todo')

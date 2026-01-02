@@ -1,0 +1,14 @@
+-- AlterTable
+ALTER TABLE "Producto" ADD COLUMN IF NOT EXISTS "principioActivo" TEXT,
+ADD COLUMN IF NOT EXISTS "laboratorio" TEXT,
+ADD COLUMN IF NOT EXISTS "concentracion" TEXT,
+ADD COLUMN IF NOT EXISTS "presentacion" TEXT,
+ADD COLUMN IF NOT EXISTS "requiereReceta" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "refrigerado" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "controlado" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "codigoDigemid" TEXT,
+ADD COLUMN IF NOT EXISTS "codigoBarras" TEXT,
+ADD COLUMN IF NOT EXISTS "pesoGramos" DECIMAL(65,30);
+
+-- CreateIndex
+CREATE UNIQUE INDEX IF NOT EXISTS "Producto_codigoDigemid_key" ON "Producto"("codigoDigemid");
