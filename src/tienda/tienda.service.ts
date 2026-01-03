@@ -315,6 +315,20 @@ export class TiendaService {
     if (!empresa) {
       throw new NotFoundException('Tienda no encontrada');
     }
+    console.log('obtenerProductosTienda', { slug, page, limit, search, category, minPrice, maxPrice });
+
+    const signIfS3 = async (url?: string | null) => {
+      try {
+        if (!url) return url as any;
+        const idx = url.indexOf('amazonaws.com/');
+        if (idx === -1) return url as any;
+        const key = url.substring(idx + 'amazonaws.com/'.length);
+        if (!key) return url as any;
+        const signed = await this.s3.getSignedGetUrl(key, 600);
+        return signed || (url as any);
+      } catch { return url as any; }
+    };
+
 
     const skip = Math.max(0, (Number(page) || 1) - 1) * (Number(limit) || 30);
     const take = Math.max(1, Math.min(100, Number(limit) || 30));
@@ -395,17 +409,6 @@ export class TiendaService {
         skip,
         take,
       });
-      const signIfS3 = async (url?: string | null) => {
-        try {
-          if (!url) return url as any;
-          const idx = url.indexOf('amazonaws.com/');
-          if (idx === -1) return url as any;
-          const key = url.substring(idx + 'amazonaws.com/'.length);
-          if (!key) return url as any;
-          const signed = await this.s3.getSignedGetUrl(key, 600);
-          return signed || (url as any);
-        } catch { return url as any; }
-      };
       const items = await Promise.all(
         itemsRaw.map(async (p: any) => ({
           ...p,
@@ -419,6 +422,7 @@ export class TiendaService {
     }
 
     // Fallback: activos con stock>0
+    console.log('obtenerProductosTienda fallback active');
     const whereActivos: any = {
       empresaId: empresa.id,
       estado: 'ACTIVO' as const,
@@ -431,7 +435,6 @@ export class TiendaService {
       ];
     }
 
-    // Filtro por rango de precios (Fallback)
     if (minPrice !== undefined || maxPrice !== undefined) {
       const priceFilter: any = {};
       if (minPrice !== undefined) priceFilter.gte = minPrice;
@@ -439,7 +442,6 @@ export class TiendaService {
       whereActivos.precioUnitario = priceFilter;
     }
 
-    // Filtro por categorías (Fallback) - use OR conditions for case-insensitive matching
     if (category && category.trim()) {
       const cats = category.split(',').map((c) => c.trim()).filter(Boolean);
       if (cats.length > 0) {
@@ -470,17 +472,10 @@ export class TiendaService {
       skip,
       take,
     });
-    const signIfS3 = async (url?: string | null) => {
-      try {
-        if (!url) return url as any;
-        const idx = url.indexOf('amazonaws.com/');
-        if (idx === -1) return url as any;
-        const key = url.substring(idx + 'amazonaws.com/'.length);
-        if (!key) return url as any;
-        const signed = await this.s3.getSignedGetUrl(key, 600);
-        return signed || (url as any);
-      } catch { return url as any; }
-    };
+
+
+
+
     const items = await Promise.all(
       itemsRaw.map(async (p: any) => ({
         ...p,
@@ -490,8 +485,97 @@ export class TiendaService {
           : p.imagenesExtra,
       }))
     );
+
     return { data: items, total, page: Number(page) || 1, limit: take };
   }
+
+  async obtenerProductosRelacionados(slug: string, id: number, limit = 10) {
+    const tienda = await this.obtenerTiendaPorSlug(slug);
+    const producto = await this.prisma.producto.findUnique({
+      where: { id },
+      include: { categoria: true },
+    });
+
+    if (!producto) throw new NotFoundException('Producto no encontrado');
+
+    let related: any[] = [];
+
+    // 1. Try fetching by same category, excluding current
+    if (producto.categoriaId) {
+      related = await this.prisma.producto.findMany({
+        where: {
+          empresaId: tienda.id,
+          categoriaId: producto.categoriaId,
+          id: { not: id },
+          estado: 'ACTIVO',
+          stock: { gt: 0 }
+        },
+        take: 20, // Fetch more to shuffle
+        select: {
+          id: true,
+          descripcion: true,
+          precioUnitario: true,
+          imagenUrl: true,
+          categoria: { select: { nombre: true } },
+          stock: true,
+
+        }
+      });
+    }
+
+    // 2. If not enough, fetch random active products
+    if (related.length < limit) {
+      const more = await this.prisma.producto.findMany({
+        where: {
+          empresaId: tienda.id,
+          id: { not: id }, // and not in related? (simplified for now)
+          estado: 'ACTIVO',
+          stock: { gt: 0 }
+        },
+        take: 20,
+        select: {
+          id: true,
+          descripcion: true,
+          precioUnitario: true,
+          imagenUrl: true,
+          categoria: { select: { nombre: true } },
+          stock: true,
+
+        }
+      });
+
+      // Merge and deduplicate
+      const seen = new Set(related.map(p => p.id));
+      more.forEach(p => {
+        if (!seen.has(p.id)) {
+          related.push(p);
+          seen.add(p.id);
+        }
+      });
+    }
+
+    // Shuffle array
+    related = related.sort(() => 0.5 - Math.random()).slice(0, limit);
+
+    // Sign images
+    const signIfS3 = async (url?: string | null) => {
+      try {
+        if (!url) return url as any;
+        const idx = url.indexOf('amazonaws.com/');
+        if (idx === -1) return url as any;
+        const key = url.substring(idx + 'amazonaws.com/'.length);
+        if (!key) return url as any;
+        return await this.s3.getSignedGetUrl(key, 600);
+      } catch { return url as any; }
+    };
+
+    return Promise.all(related.map(async p => ({
+      ...p,
+      imagenUrl: await signIfS3(p.imagenUrl)
+    })));
+  }
+
+
 
   async obtenerProductoDetalle(slug: string, productoId: number) {
     const empresa = await this.prisma.empresa.findUnique({

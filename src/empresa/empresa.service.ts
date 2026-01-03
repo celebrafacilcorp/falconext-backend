@@ -208,6 +208,8 @@ export class EmpresaService {
     limit?: number;
     sort?: 'id' | 'ruc' | 'razonSocial' | 'fechaActivacion' | 'fechaExpiracion';
     order?: 'asc' | 'desc';
+    estado?: 'ACTIVO' | 'INACTIVO' | 'TODOS';
+    tipoEmpresa?: 'FORMAL' | 'INFORMAL' | '';
   }) {
     const {
       search,
@@ -215,14 +217,28 @@ export class EmpresaService {
       limit = 10,
       sort = 'id',
       order = 'desc',
+      estado = 'TODOS',
+      tipoEmpresa = '',
     } = params;
     const skip = (page - 1) * limit;
 
-    let where: any = { estado: 'ACTIVO' };
+    let where: any = {};
+
+    // Filtro por estado
+    if (estado !== 'TODOS') {
+      where.estado = estado;
+    }
+
+    // Filtro por tipo de empresa
+    if (tipoEmpresa) {
+      where.tipoEmpresa = tipoEmpresa;
+    }
+
     if (search) {
       where = {
         AND: [
-          { estado: 'ACTIVO' },
+          ...(estado !== 'TODOS' ? [{ estado }] : []),
+          ...(tipoEmpresa ? [{ tipoEmpresa }] : []),
           {
             OR: [
               { ruc: { contains: search } },
@@ -259,6 +275,12 @@ export class EmpresaService {
               tieneTienda: true,
             },
           },
+          rubro: {
+            select: {
+              id: true,
+              nombre: true,
+            },
+          },
         },
       }),
       this.prisma.empresa.count({ where }),
@@ -277,6 +299,7 @@ export class EmpresaService {
         fechaActivacion: e.fechaActivacion,
         fechaExpiracion: e.fechaExpiracion,
         slugTienda: e.slugTienda,
+        rubro: e.rubro,
         plan: {
           nombre: e.plan.nombre,
           costo: e.plan.costo,

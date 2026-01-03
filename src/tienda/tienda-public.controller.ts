@@ -54,6 +54,14 @@ export class TiendaPublicController {
     return this.tiendaService.obtenerProductoDetalle(slug, +id);
   }
 
+  @Get(':slug/products/:id/related')
+  async obtenerProductosRelacionados(
+    @Param('slug') slug: string,
+    @Param('id') id: string,
+  ) {
+    return this.tiendaService.obtenerProductosRelacionados(slug, +id);
+  }
+
   @Get(':slug/payment-config')
   async obtenerConfiguracionPago(@Param('slug') slug: string) {
     return this.tiendaService.obtenerConfiguracionPago(slug);

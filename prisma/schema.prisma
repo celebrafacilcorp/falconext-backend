@@ -220,6 +220,7 @@ model Producto {
   comboItems          ComboItem[]          
   gruposModificadores ProductoGrupoModificador[] 
   lotes               ProductoLote[]
+  banners             Banner[]
 
   @@unique([empresaId, codigo])
   @@index([empresaId, publicarEnTienda])
@@ -713,6 +714,8 @@ model Banner {
   subtitulo  String?
   imagenUrl  String
   linkUrl    String?
+  productoId Int?
+  producto   Producto? @relation(fields: [productoId], references: [id])
   orden      Int      @default(0)
   activo     Boolean  @default(true)
   creadoEn   DateTime @default(now())

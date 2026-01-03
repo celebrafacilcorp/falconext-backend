@@ -23,6 +23,7 @@ export class BannersController {
         @Body('titulo') titulo?: string,
         @Body('subtitulo') subtitulo?: string,
         @Body('linkUrl') linkUrl?: string,
+        @Body('productoId') productoId?: string,
         @Body('orden') orden?: string,
     ) {
         if (!file) {
@@ -46,6 +47,7 @@ export class BannersController {
             titulo || 'Banner',
             subtitulo,
             linkUrl,
+            productoId ? parseInt(productoId) : undefined,
             orden ? parseInt(orden) : undefined,
         );
     }

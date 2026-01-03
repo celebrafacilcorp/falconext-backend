@@ -187,6 +187,17 @@ export class ProductoController {
     return eliminado;
   }
 
+  @Delete('empresa/eliminar-todo')
+  @Roles('ADMIN_EMPRESA')
+  async eliminarTodo(
+    @User() user: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const eliminados = await this.service.eliminarTodo(user.empresaId);
+    res.locals.message = `Se eliminaron (lógicamente) ${eliminados.count} productos correctamente`;
+    return eliminados;
+  }
+
   @Get(':id')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   async obtenerPorId(

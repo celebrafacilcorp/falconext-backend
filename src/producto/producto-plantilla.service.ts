@@ -208,85 +208,115 @@ export class ProductoPlantillaService {
             where: { id: { in: plantillasIds } },
         });
 
+        // Optimización: Cargar nombres de productos existentes para evitar duplicados por nombre
+        const productosExistentes = await this.prisma.producto.findMany({
+            where: {
+                empresaId,
+                estado: { not: EstadoType.PLACEHOLDER } // Ignorar productos eliminados, permitir re-importar
+            },
+            select: { descripcion: true }
+        });
+
+        // Set para búsqueda rápida O(1) - Normalizado a mayúsculas/trim
+        const nombresExistentes = new Set(
+            productosExistentes.map(p => p.descripcion.trim().toUpperCase())
+        );
+
         const resultados: any[] = [];
+        const errors: any[] = [];
 
         for (const plantilla of plantillas) {
-            // Generar código único básico
-            const codigoBase = plantilla.nombre.substring(0, 3).toUpperCase() + Math.floor(Math.random() * 1000);
+            try {
+                // Validación Anti-Duplicados por Nombre
+                const nombreNormalizado = plantilla.nombre.trim().toUpperCase();
+                if (nombresExistentes.has(nombreNormalizado)) {
+                    // console.log(`Skipping duplicate: ${plantilla.nombre}`);
+                    continue;
+                }
 
-            // 1. Manejo de Categoría
-            let categoriaId: number | null = null;
-            if (plantilla.categoria && plantilla.categoria.trim() !== '') {
-                const nombreCat = plantilla.categoria.trim();
-                const catExistente = await this.prisma.categoria.findFirst({
-                    where: {
-                        empresaId: empresaId,
-                        nombre: { equals: nombreCat }
-                    }
-                });
+                // Generar código único básico más robusto
+                const cleanName = plantilla.nombre.replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase();
+                const codigoBase = (cleanName || 'PRO') + Date.now().toString().slice(-6) + Math.floor(Math.random() * 1000);
 
-                if (catExistente) {
-                    categoriaId = catExistente.id;
-                } else {
-                    const nuevaCat = await this.prisma.categoria.create({
-                        data: {
+                // 1. Manejo de Categoría
+                let categoriaId: number | null = null;
+                if (plantilla.categoria && plantilla.categoria.trim() !== '') {
+                    const nombreCat = plantilla.categoria.trim();
+                    const catExistente = await this.prisma.categoria.findFirst({
+                        where: {
                             empresaId: empresaId,
-                            nombre: nombreCat
+                            nombre: { equals: nombreCat, mode: 'insensitive' }
                         }
                     });
-                    categoriaId = nuevaCat.id;
-                }
-            }
 
-            // 2. Manejo de Marca
-            let marcaId: number | null = null;
-            if (plantilla.marca && plantilla.marca.trim() !== '') {
-                const nombreMarca = plantilla.marca.trim();
-                const marcaExistente = await this.prisma.marca.findFirst({
-                    where: {
-                        empresaId: empresaId,
-                        nombre: { equals: nombreMarca }
+                    if (catExistente) {
+                        categoriaId = catExistente.id;
+                    } else {
+                        const nuevaCat = await this.prisma.categoria.create({
+                            data: {
+                                empresaId: empresaId,
+                                nombre: nombreCat
+                            }
+                        });
+                        categoriaId = nuevaCat.id;
                     }
-                });
+                }
 
-                if (marcaExistente) {
-                    marcaId = marcaExistente.id;
-                } else {
-                    const nuevaMarca = await this.prisma.marca.create({
-                        data: {
+                // 2. Manejo de Marca
+                let marcaId: number | null = null;
+                if (plantilla.marca && plantilla.marca.trim() !== '') {
+                    const nombreMarca = plantilla.marca.trim();
+                    const marcaExistente = await this.prisma.marca.findFirst({
+                        where: {
                             empresaId: empresaId,
-                            nombre: nombreMarca
+                            nombre: { equals: nombreMarca, mode: 'insensitive' }
                         }
                     });
-                    marcaId = nuevaMarca.id;
+
+                    if (marcaExistente) {
+                        marcaId = marcaExistente.id;
+                    } else {
+                        const nuevaMarca = await this.prisma.marca.create({
+                            data: {
+                                empresaId: empresaId,
+                                nombre: nombreMarca
+                            }
+                        });
+                        marcaId = nuevaMarca.id;
+                    }
                 }
+
+                // Mapear plantilla a producto
+                const unidad = await this.prisma.unidadMedida.findFirst({ where: { codigo: plantilla.unidadConteo } })
+                    || await this.prisma.unidadMedida.findFirst();
+
+                const nuevoProducto = await this.prisma.producto.create({
+                    data: {
+                        empresaId,
+                        codigo: codigoBase,
+                        descripcion: plantilla.nombre,
+                        descripcionLarga: plantilla.descripcion,
+                        imagenUrl: plantilla.imagenUrl,
+                        precioUnitario: plantilla.precioSugerido || 0,
+                        valorUnitario: (Number(plantilla.precioSugerido) || 0) / 1.18,
+                        stock: 50,
+                        stockMinimo: 5,
+                        unidadMedidaId: unidad?.id || 1,
+                        categoriaId: categoriaId,
+                        marcaId: marcaId, // Asignar marca
+                        tipoAfectacionIGV: '10',
+                        igvPorcentaje: 18.00,
+                        estado: 'ACTIVO',
+                        publicarEnTienda: true,
+                    },
+                });
+                // Marcar como existente para evitar duplicados en el mismo lote
+                nombresExistentes.add(nombreNormalizado);
+                resultados.push(nuevoProducto);
+            } catch (error: any) {
+                console.warn(`Error importando plantilla ID ${plantilla.id}:`, error.message);
+                errors.push({ id: plantilla.id, error: error.message });
             }
-
-            // Mapear plantilla a producto
-            const unidad = await this.prisma.unidadMedida.findFirst({ where: { codigo: plantilla.unidadConteo } })
-                || await this.prisma.unidadMedida.findFirst();
-
-            const nuevoProducto = await this.prisma.producto.create({
-                data: {
-                    empresaId,
-                    codigo: codigoBase,
-                    descripcion: plantilla.nombre,
-                    descripcionLarga: plantilla.descripcion,
-                    imagenUrl: plantilla.imagenUrl,
-                    precioUnitario: plantilla.precioSugerido || 0,
-                    valorUnitario: (Number(plantilla.precioSugerido) || 0) / 1.18,
-                    stock: 50,
-                    stockMinimo: 5,
-                    unidadMedidaId: unidad?.id || 1,
-                    categoriaId: categoriaId,
-                    marcaId: marcaId, // Asignar marca
-                    tipoAfectacionIGV: '10',
-                    igvPorcentaje: 18.00,
-                    estado: 'ACTIVO',
-                    publicarEnTienda: true,
-                },
-            });
-            resultados.push(nuevoProducto);
         }
 
         return resultados;

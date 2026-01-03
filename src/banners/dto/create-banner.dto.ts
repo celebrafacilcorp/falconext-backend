@@ -5,12 +5,20 @@ export class CreateBannerDto {
     titulo: string;
 
     @IsString()
+    @IsOptional()
+    subtitulo?: string;
+
+    @IsString()
     @IsUrl()
     imagenUrl: string;
 
     @IsString()
     @IsOptional()
-    link?: string;
+    linkUrl?: string;
+
+    @IsNumber()
+    @IsOptional()
+    productoId?: number;
 
     @IsNumber()
     @IsOptional()
@@ -20,3 +28,4 @@ export class CreateBannerDto {
     @IsOptional()
     activo?: boolean;
 }
+

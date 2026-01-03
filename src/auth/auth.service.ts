@@ -43,6 +43,11 @@ export class AuthService {
     if (user.estado !== 'ACTIVO')
       throw new ForbiddenException('Cuenta inactiva');
 
+    // Validar que la empresa esté activa (solo si el usuario pertenece a una empresa)
+    if (user.empresaId && user.empresa?.estado !== 'ACTIVO') {
+      throw new ForbiddenException('La empresa está inactiva. Contacte con soporte.');
+    }
+
     if (
       user.empresa?.fechaExpiracion &&
       user.empresa.fechaExpiracion < new Date()
@@ -51,7 +56,7 @@ export class AuthService {
     }
 
     const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) throw new UnauthorizedException('Contraseña incorrecta');
+    if (!isValid) throw new UnauthorizedException('Contraseña incorreta');
 
     const usuarioCompleto = await this.obtenerUsuarioActual(user.id);
     if (!usuarioCompleto)
@@ -83,7 +88,11 @@ export class AuthService {
   async refresh(refreshToken: string) {
     const stored = await this.prisma.refreshToken.findUnique({
       where: { token: refreshToken },
-      include: { usuario: true },
+      include: {
+        usuario: {
+          include: { empresa: true }
+        }
+      },
     });
     if (!stored) throw new UnauthorizedException('Refresh token inválido');
     if (stored.expiresAt < new Date()) {
@@ -92,6 +101,17 @@ export class AuthService {
     }
 
     const user = stored.usuario;
+
+    // Validar que el usuario esté activo
+    if (user.estado !== 'ACTIVO') {
+      throw new ForbiddenException('Cuenta inactiva');
+    }
+
+    // Validar que la empresa esté activa (solo si el usuario pertenece a una empresa y no es ADMIN_SISTEMA)
+    if (user.rol !== 'ADMIN_SISTEMA' && user.empresaId && user.empresa?.estado !== 'ACTIVO') {
+      throw new ForbiddenException('La empresa está inactiva. Contacte con soporte.');
+    }
+
     const payload: { sub: number; rol: string; empresaId: number | null } = {
       sub: user.id,
       rol: user.rol as unknown as string,

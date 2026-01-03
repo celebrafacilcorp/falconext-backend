@@ -34,7 +34,7 @@ export class DashboardService {
           }),
           this.prisma.comprobante.count({ where: whereBase }),
           this.prisma.cliente.count({ where: { empresaId } }),
-          this.prisma.producto.count({ where: { empresaId } }),
+          this.prisma.producto.count({ where: { empresaId, estado: { not: 'PLACEHOLDER' as any } } }),
         ]);
 
       const elapsed = Date.now() - startTime;

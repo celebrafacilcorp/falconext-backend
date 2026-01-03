@@ -78,8 +78,11 @@ export class ProductoService {
     const existe = await this.prisma.producto.findFirst({
       where: { codigo, empresaId },
     });
-    if (existe)
+
+    // Validar si existe y no está eliminado
+    if (existe && existe.estado !== 'PLACEHOLDER') {
       throw new ForbiddenException('Ya existe un producto con ese código');
+    }
 
     const unidad = await this.prisma.unidadMedida.findUnique({
       where: { id: unidadMedidaId },
@@ -95,27 +98,52 @@ export class ProductoService {
     const rawValor = precioUnitario / divisor;
     const valorUnitario = parseFloat(rawValor.toFixed(2));
 
-    const nuevo = await this.prisma.producto.create({
-      data: {
-        codigo,
-        descripcion,
-        unidadMedidaId,
-        tipoAfectacionIGV,
-        precioUnitario: new Decimal(precioUnitario),
-        valorUnitario: new Decimal(valorUnitario),
-        igvPorcentaje: new Decimal(igvPorcentaje),
-        stock,
-        stockMinimo: stockMinimo != null ? stockMinimo : undefined,
-        stockMaximo: stockMaximo != null ? stockMaximo : undefined,
-        categoriaId:
-          categoriaId && Number(categoriaId) > 0
-            ? Number(categoriaId)
-            : undefined,
-        marcaId: marcaId && Number(marcaId) > 0 ? Number(marcaId) : undefined,
-        empresaId,
-        imagenUrl: imagenUrl || undefined,
-      },
-    });
+    let nuevo;
+    if (existe && existe.estado === 'PLACEHOLDER') {
+      console.log(`[CREAR] Restaurando producto PLACEHOLDER: ${codigo}`);
+      // Restaurar producto eliminado
+      nuevo = await this.prisma.producto.update({
+        where: { id: existe.id },
+        data: {
+          // Actualizamos con la nueva data
+          descripcion,
+          unidadMedidaId,
+          tipoAfectacionIGV,
+          precioUnitario: new Decimal(precioUnitario),
+          valorUnitario: new Decimal(valorUnitario),
+          igvPorcentaje: new Decimal(igvPorcentaje),
+          stock,
+          stockMinimo: stockMinimo != null ? stockMinimo : undefined,
+          stockMaximo: stockMaximo != null ? stockMaximo : undefined,
+          categoriaId: categoriaId && Number(categoriaId) > 0 ? Number(categoriaId) : undefined,
+          marcaId: marcaId && Number(marcaId) > 0 ? Number(marcaId) : undefined,
+          imagenUrl: imagenUrl || undefined,
+          estado: EstadoType.ACTIVO, // Reactivar usando Enum
+          publicarEnTienda: true
+        }
+      });
+    } else {
+      // Crear nuevo
+      nuevo = await this.prisma.producto.create({
+        data: {
+          codigo,
+          descripcion,
+          unidadMedidaId,
+          tipoAfectacionIGV,
+          precioUnitario: new Decimal(precioUnitario),
+          valorUnitario: new Decimal(valorUnitario),
+          igvPorcentaje: new Decimal(igvPorcentaje),
+          stock,
+          stockMinimo: stockMinimo != null ? stockMinimo : undefined,
+          stockMaximo: stockMaximo != null ? stockMaximo : undefined,
+          categoriaId: categoriaId && Number(categoriaId) > 0 ? Number(categoriaId) : undefined,
+          marcaId: marcaId && Number(marcaId) > 0 ? Number(marcaId) : undefined,
+          empresaId,
+          imagenUrl: imagenUrl || undefined,
+          estado: EstadoType.ACTIVO
+        },
+      });
+    }
 
     return nuevo;
   }
@@ -452,14 +480,34 @@ export class ProductoService {
     });
   }
 
+  async eliminarTodo(empresaId: number) {
+    const productosDelSistema = ['PLD', 'IPM', 'DGD'];
+    // Actualizar todos los productos de la empresa a estado PLACEHOLDER, excepto los del sistema
+    const result = await this.prisma.producto.updateMany({
+      where: {
+        empresaId,
+        codigo: { notIn: productosDelSistema },
+        estado: { not: 'PLACEHOLDER' as any }, // Evitar re-actualizar los que ya están eliminados
+      },
+      data: {
+        estado: 'PLACEHOLDER' as any,
+        publicarEnTienda: false as any,
+      },
+    });
+    return result;
+  }
+
   async obtenerSiguienteCodigo(empresaId: number, prefijo = 'PR') {
     return this.generarCodigoProducto(empresaId, prefijo);
   }
 
   async exportar(empresaId: number, search?: string): Promise<Buffer> {
+    const productosDelSistema = ['PLD', 'IPM', 'DGD'];
+
     const where: any = {
       empresaId,
       estado: { in: [EstadoType.ACTIVO, EstadoType.INACTIVO] },
+      codigo: { notIn: productosDelSistema },
       OR: search
         ? [
           { descripcion: { contains: search, mode: 'insensitive' } },

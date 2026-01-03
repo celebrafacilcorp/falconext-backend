@@ -37,6 +37,7 @@ export class BannersService {
         titulo: string,
         subtitulo?: string,
         linkUrl?: string,
+        productoId?: number,
         orden?: number,
     ) {
         // Validar si tiene feature activado
@@ -74,6 +75,7 @@ export class BannersService {
                 subtitulo,
                 imagenUrl: imageUrl,
                 linkUrl,
+                productoId,
                 orden,
                 activo: true,
             },
@@ -94,6 +96,7 @@ export class BannersService {
     async findAll(empresaId: number) {
         const banners = await this.prisma.banner.findMany({
             where: { empresaId },
+            include: { producto: { select: { id: true, descripcion: true } } }, // Ensuring we get product basics
             orderBy: { orden: 'asc' },
         });
 
