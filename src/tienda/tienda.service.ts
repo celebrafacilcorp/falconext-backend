@@ -312,103 +312,170 @@ export class TiendaService {
       select: { id: true },
     });
 
-    if (!empresa) {
-      throw new NotFoundException('Tienda no encontrada');
-    }
-    console.log('obtenerProductosTienda', { slug, page, limit, search, category, minPrice, maxPrice });
+    try {
+      if (!empresa) {
+        throw new NotFoundException('Tienda no encontrada');
+      }
+      console.log('obtenerProductosTienda', { slug, page, limit, search, category, minPrice, maxPrice });
 
-    const signIfS3 = async (url?: string | null) => {
-      try {
-        if (!url) return url as any;
-        const idx = url.indexOf('amazonaws.com/');
-        if (idx === -1) return url as any;
-        const key = url.substring(idx + 'amazonaws.com/'.length);
-        if (!key) return url as any;
-        const signed = await this.s3.getSignedGetUrl(key, 600);
-        return signed || (url as any);
-      } catch { return url as any; }
-    };
+      const signIfS3 = async (url?: string | null) => {
+        try {
+          if (!url) return url as any;
+          const idx = url.indexOf('amazonaws.com/');
+          if (idx === -1) return url as any;
+          const key = url.substring(idx + 'amazonaws.com/'.length);
+          if (!key) return url as any;
+          const signed = await this.s3.getSignedGetUrl(key, 600);
+          return signed || (url as any);
+        } catch { return url as any; }
+      };
 
 
-    const skip = Math.max(0, (Number(page) || 1) - 1) * (Number(limit) || 30);
-    const take = Math.max(1, Math.min(100, Number(limit) || 30));
+      const skip = Math.max(0, (Number(page) || 1) - 1) * (Number(limit) || 30);
+      const take = Math.max(1, Math.min(100, Number(limit) || 30));
 
-    const select = {
-      id: true,
-      codigo: true,
-      descripcion: true,
-      descripcionLarga: true,
-      precioUnitario: true,
-      stock: true,
-      imagenUrl: true,
-      imagenesExtra: true,
-      destacado: true,
-      ratingAvg: true,
-      ratingCount: true,
-      categoria: { select: { id: true, nombre: true } },
-      unidadMedida: { select: { codigo: true, nombre: true } },
-    } as const;
+      const select = {
+        id: true,
+        codigo: true,
+        descripcion: true,
+        descripcionLarga: true,
+        precioUnitario: true,
+        stock: true,
+        imagenUrl: true,
+        imagenesExtra: true,
+        destacado: true,
+        ratingAvg: true,
+        ratingCount: true,
+        categoria: { select: { id: true, nombre: true } },
+        unidadMedida: { select: { codigo: true, nombre: true } },
+      } as const;
 
-    const baseOrder = [{ destacado: 'desc' as const }, { descripcion: 'asc' as const }];
+      const baseOrder = [{ destacado: 'desc' as const }, { descripcion: 'asc' as const }];
 
-    const wherePublicados: any = {
-      empresaId: empresa.id,
-      publicarEnTienda: true,
-      estado: 'ACTIVO' as const,
-      stock: { gt: 0 },
-    };
-    const term = (search || '').trim();
-    if (term) {
-      wherePublicados.OR = [
-        { descripcion: { contains: term, mode: 'insensitive' } },
-        { codigo: { contains: term, mode: 'insensitive' } },
-      ];
-    }
+      const wherePublicados: any = {
+        empresaId: empresa.id,
+        publicarEnTienda: true,
+        estado: 'ACTIVO' as const,
+        stock: { gt: 0 },
+      };
+      const term = (search || '').trim();
+      if (term) {
+        wherePublicados.OR = [
+          { descripcion: { contains: term, mode: 'insensitive' } },
+          { codigo: { contains: term, mode: 'insensitive' } },
+        ];
+      }
 
-    // Filtro por rango de precios
-    if (minPrice !== undefined || maxPrice !== undefined) {
-      const priceFilter: any = {};
-      if (minPrice !== undefined) priceFilter.gte = minPrice;
-      if (maxPrice !== undefined) priceFilter.lte = maxPrice;
-      wherePublicados.precioUnitario = priceFilter;
-    }
+      // Filtro por rango de precios
+      if (minPrice !== undefined || maxPrice !== undefined) {
+        const priceFilter: any = {};
+        if (minPrice !== undefined) priceFilter.gte = minPrice;
+        if (maxPrice !== undefined) priceFilter.lte = maxPrice;
+        wherePublicados.precioUnitario = priceFilter;
+      }
 
-    // Filtro por categorías - use OR conditions for case-insensitive matching
-    if (category && category.trim()) {
-      const cats = category.split(',').map((c) => c.trim()).filter(Boolean);
-      if (cats.length > 0) {
-        // Build OR conditions for each category name
-        const categoryConditions = cats.map((catName) => ({
-          categoria: {
-            nombre: { equals: catName, mode: 'insensitive' as const },
-          },
-        }));
+      // Filtro por categorías - use OR conditions for case-insensitive matching
+      if (category && category.trim()) {
+        const cats = category.split(',').map((c) => c.trim()).filter(Boolean);
+        if (cats.length > 0) {
+          // Build OR conditions for each category name
+          const categoryConditions = cats.map((catName) => ({
+            categoria: {
+              nombre: { equals: catName, mode: 'insensitive' as const },
+            },
+          }));
 
-        // If there's already an OR condition (from search), we need to AND them
-        if (wherePublicados.OR) {
-          // Wrap existing OR in AND with category filter
-          const existingOR = wherePublicados.OR;
-          delete wherePublicados.OR;
-          wherePublicados.AND = [
-            { OR: existingOR },
-            { OR: categoryConditions },
-          ];
-        } else {
-          wherePublicados.OR = categoryConditions;
+          // If there's already an OR condition (from search), we need to AND them
+          if (wherePublicados.OR) {
+            // Wrap existing OR in AND with category filter
+            const existingOR = wherePublicados.OR;
+            delete wherePublicados.OR;
+            wherePublicados.AND = [
+              { OR: existingOR },
+              { OR: categoryConditions },
+            ];
+          } else {
+            wherePublicados.OR = categoryConditions;
+          }
         }
       }
-    }
 
-    const countPublicados = await this.prisma.producto.count({ where: wherePublicados });
+      console.log('wherePublicados count', JSON.stringify(wherePublicados));
+      const countPublicados = await this.prisma.producto.count({ where: wherePublicados });
 
-    if (countPublicados > 0) {
+      if (countPublicados > 0) {
+        const itemsRaw = await this.prisma.producto.findMany({
+          where: wherePublicados,
+          select,
+          orderBy: baseOrder,
+          skip,
+          take,
+        });
+        const items = await Promise.all(
+          itemsRaw.map(async (p: any) => ({
+            ...p,
+            imagenUrl: await signIfS3(p.imagenUrl),
+            imagenesExtra: Array.isArray(p.imagenesExtra)
+              ? await Promise.all(p.imagenesExtra.map((u: string) => signIfS3(u)))
+              : p.imagenesExtra,
+          }))
+        );
+        return { data: items, total: countPublicados, page: Number(page) || 1, limit: take };
+      }
+
+      // Fallback: activos con stock>0
+      console.log('obtenerProductosTienda fallback active');
+      const whereActivos: any = {
+        empresaId: empresa.id,
+        estado: 'ACTIVO' as const,
+        stock: { gt: 0 },
+      };
+      if (term) {
+        whereActivos.OR = [
+          { descripcion: { contains: term, mode: 'insensitive' } },
+          { codigo: { contains: term, mode: 'insensitive' } },
+        ];
+      }
+
+      if (minPrice !== undefined || maxPrice !== undefined) {
+        const priceFilter: any = {};
+        if (minPrice !== undefined) priceFilter.gte = minPrice;
+        if (maxPrice !== undefined) priceFilter.lte = maxPrice;
+        whereActivos.precioUnitario = priceFilter;
+      }
+
+      if (category && category.trim()) {
+        const cats = category.split(',').map((c) => c.trim()).filter(Boolean);
+        if (cats.length > 0) {
+          const categoryConditions = cats.map((catName) => ({
+            categoria: {
+              nombre: { equals: catName, mode: 'insensitive' as const },
+            },
+          }));
+
+          if (whereActivos.OR) {
+            const existingOR = whereActivos.OR;
+            delete whereActivos.OR;
+            whereActivos.AND = [
+              { OR: existingOR },
+              { OR: categoryConditions },
+            ];
+          } else {
+            whereActivos.OR = categoryConditions;
+          }
+        }
+      }
+
+      const total = await this.prisma.producto.count({ where: whereActivos });
       const itemsRaw = await this.prisma.producto.findMany({
-        where: wherePublicados,
+        where: whereActivos,
         select,
         orderBy: baseOrder,
         skip,
         take,
       });
+
+
       const items = await Promise.all(
         itemsRaw.map(async (p: any) => ({
           ...p,
@@ -418,75 +485,14 @@ export class TiendaService {
             : p.imagenesExtra,
         }))
       );
-      return { data: items, total: countPublicados, page: Number(page) || 1, limit: take };
+
+      return { data: items, total, page: Number(page) || 1, limit: take };
+
+    } catch (e: any) {
+      console.error('Error in obtenerProductosTienda:', e);
+      if (e?.code === 'P2002') console.error('Prisma Unique constraint failed');
+      throw e;
     }
-
-    // Fallback: activos con stock>0
-    console.log('obtenerProductosTienda fallback active');
-    const whereActivos: any = {
-      empresaId: empresa.id,
-      estado: 'ACTIVO' as const,
-      stock: { gt: 0 },
-    };
-    if (term) {
-      whereActivos.OR = [
-        { descripcion: { contains: term, mode: 'insensitive' } },
-        { codigo: { contains: term, mode: 'insensitive' } },
-      ];
-    }
-
-    if (minPrice !== undefined || maxPrice !== undefined) {
-      const priceFilter: any = {};
-      if (minPrice !== undefined) priceFilter.gte = minPrice;
-      if (maxPrice !== undefined) priceFilter.lte = maxPrice;
-      whereActivos.precioUnitario = priceFilter;
-    }
-
-    if (category && category.trim()) {
-      const cats = category.split(',').map((c) => c.trim()).filter(Boolean);
-      if (cats.length > 0) {
-        const categoryConditions = cats.map((catName) => ({
-          categoria: {
-            nombre: { equals: catName, mode: 'insensitive' as const },
-          },
-        }));
-
-        if (whereActivos.OR) {
-          const existingOR = whereActivos.OR;
-          delete whereActivos.OR;
-          whereActivos.AND = [
-            { OR: existingOR },
-            { OR: categoryConditions },
-          ];
-        } else {
-          whereActivos.OR = categoryConditions;
-        }
-      }
-    }
-
-    const total = await this.prisma.producto.count({ where: whereActivos });
-    const itemsRaw = await this.prisma.producto.findMany({
-      where: whereActivos,
-      select,
-      orderBy: baseOrder,
-      skip,
-      take,
-    });
-
-
-
-
-    const items = await Promise.all(
-      itemsRaw.map(async (p: any) => ({
-        ...p,
-        imagenUrl: await signIfS3(p.imagenUrl),
-        imagenesExtra: Array.isArray(p.imagenesExtra)
-          ? await Promise.all(p.imagenesExtra.map((u: string) => signIfS3(u)))
-          : p.imagenesExtra,
-      }))
-    );
-
-    return { data: items, total, page: Number(page) || 1, limit: take };
   }
 
   async obtenerProductosRelacionados(slug: string, id: number, limit = 10) {

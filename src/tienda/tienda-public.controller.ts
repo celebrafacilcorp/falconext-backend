@@ -25,14 +25,17 @@ export class TiendaPublicController {
     @Query('minPrice') minPrice = '',
     @Query('maxPrice') maxPrice = '',
   ) {
+    const min = minPrice && !isNaN(Number(minPrice)) ? Number(minPrice) : undefined;
+    const max = maxPrice && !isNaN(Number(maxPrice)) ? Number(maxPrice) : undefined;
+
     return this.tiendaService.obtenerProductosTienda(
       slug,
       Number(page) || 1,
       Number(limit) || 30,
       search,
       category,
-      minPrice ? Number(minPrice) : undefined,
-      maxPrice ? Number(maxPrice) : undefined,
+      min,
+      max,
     );
   }
 
