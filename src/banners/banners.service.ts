@@ -23,9 +23,10 @@ export class BannersService {
         });
         await this.featuresService.validarLimite(empresaId, 'banners', bannersCount);
 
+        const { productoId, ...rest } = createBannerDto; // Exclude productoId
         return this.prisma.banner.create({
             data: {
-                ...createBannerDto,
+                ...rest,
                 empresaId,
             },
         });
@@ -67,7 +68,6 @@ export class BannersService {
         }
 
         // Create banner record
-        // Create banner record
         const banner = await this.prisma.banner.create({
             data: {
                 empresaId,
@@ -75,7 +75,7 @@ export class BannersService {
                 subtitulo,
                 imagenUrl: imageUrl,
                 linkUrl,
-                productoId,
+                // productoId, // Excluded due to schema mismatch
                 orden,
                 activo: true,
             },
@@ -96,8 +96,19 @@ export class BannersService {
     async findAll(empresaId: number) {
         const banners = await this.prisma.banner.findMany({
             where: { empresaId },
-            include: { producto: { select: { id: true, descripcion: true } } }, // Ensuring we get product basics
             orderBy: { orden: 'asc' },
+            select: {
+                id: true,
+                titulo: true,
+                subtitulo: true,
+                imagenUrl: true,
+                linkUrl: true,
+                orden: true,
+                activo: true,
+                creadoEn: true,
+                empresaId: true,
+                // productoId implicitly excluded
+            }
         });
 
         // Enrich with signed URLs
