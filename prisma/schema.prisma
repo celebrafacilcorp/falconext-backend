@@ -220,7 +220,7 @@ model Producto {
   comboItems          ComboItem[]          
   gruposModificadores ProductoGrupoModificador[] 
   lotes               ProductoLote[]
-  banners             Banner[]
+  // banners             Banner[]
 
   @@unique([empresaId, codigo])
   @@index([empresaId, publicarEnTienda])
