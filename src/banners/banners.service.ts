@@ -108,23 +108,7 @@ export class BannersService {
             throw dbError; // Rethrow so controller handles it
         }
 
-        // Return with signed URL if needed
-        console.log(`[BannersService] Checking for signing. ImageUrl: ${banner.imagenUrl}`);
-        if (banner.imagenUrl && banner.imagenUrl.includes('amazonaws.com')) {
-            const urlParts = banner.imagenUrl.split('amazonaws.com/');
-            if (urlParts.length > 1) {
-                const key = urlParts[1];
-                try {
-                    const signed = await this.s3Service.getSignedGetUrl(key);
-                    console.log(`✅ Banner signed successfully: ${signed.substring(0, 50)}...`);
-                    banner.imagenUrl = signed;
-                } catch (e) {
-                    console.error(`❌ Error signing banner URL in uploadBanner:`, e);
-                }
-            }
-        }
 
-        return banner;
     }
 
     async findAll(empresaId: number) {
