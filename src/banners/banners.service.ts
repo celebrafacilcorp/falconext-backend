@@ -59,29 +59,54 @@ export class BannersService {
         const imageUrl = await this.s3Service.uploadImage(file.buffer, key, file.mimetype);
         console.log(`[BannersService] Image uploaded to S3: ${imageUrl}`);
 
-        // Get next orden if not provided
-        if (orden === undefined) {
-            const maxOrden = await this.prisma.banner.findFirst({
-                where: { empresaId },
-                orderBy: { orden: 'desc' },
-                select: { orden: true },
-            });
-            orden = (maxOrden?.orden ?? -1) + 1;
-        }
+        try {
+            // Get next orden if not provided
+            if (orden === undefined) {
+                const maxOrden = await this.prisma.banner.findFirst({
+                    where: { empresaId },
+                    orderBy: { orden: 'desc' },
+                    select: { orden: true },
+                });
+                orden = (maxOrden?.orden ?? -1) + 1;
+            }
+            console.log(`[BannersService] Calculated orden: ${orden}`);
 
-        // Create banner record
-        const banner = await this.prisma.banner.create({
-            data: {
-                empresaId,
-                titulo,
-                subtitulo,
-                imagenUrl: imageUrl,
-                linkUrl,
-                // productoId, // Excluded due to schema mismatch
-                orden,
-                activo: true,
-            },
-        });
+            // Create banner record
+            const banner = await this.prisma.banner.create({
+                data: {
+                    empresaId,
+                    titulo,
+                    subtitulo,
+                    imagenUrl: imageUrl,
+                    linkUrl,
+                    productoId: productoId || null, // Try including it if schema supports it, or keep null
+                    orden,
+                    activo: true,
+                },
+            });
+            console.log(`[BannersService] Banner created in DB ID: ${banner.id}`);
+
+            // Return with signed URL if needed
+            console.log(`[BannersService] Checking for signing. ImageUrl: ${banner.imagenUrl}`);
+            if (banner.imagenUrl && banner.imagenUrl.includes('amazonaws.com')) {
+                const urlParts = banner.imagenUrl.split('amazonaws.com/');
+                if (urlParts.length > 1) {
+                    const key = urlParts[1];
+                    try {
+                        const signed = await this.s3Service.getSignedGetUrl(key);
+                        console.log(`✅ Banner signed successfully: ${signed.substring(0, 50)}...`);
+                        banner.imagenUrl = signed;
+                    } catch (e) {
+                        console.error(`❌ Error signing banner URL in uploadBanner:`, e);
+                    }
+                }
+            }
+            return banner;
+
+        } catch (dbError) {
+            console.error('[BannersService] Database Error creating banner:', dbError);
+            throw dbError; // Rethrow so controller handles it
+        }
 
         // Return with signed URL if needed
         console.log(`[BannersService] Checking for signing. ImageUrl: ${banner.imagenUrl}`);
