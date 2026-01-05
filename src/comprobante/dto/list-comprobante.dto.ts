@@ -3,8 +3,8 @@ import { Type } from 'class-transformer';
 
 export class ListComprobanteDto {
   @IsString()
-  @IsIn(['FORMAL', 'INFORMAL'])
-  tipoComprobante: 'FORMAL' | 'INFORMAL';
+  @IsIn(['FORMAL', 'INFORMAL', 'COTIZACION'])
+  tipoComprobante: 'FORMAL' | 'INFORMAL' | 'COTIZACION';
 
   @IsOptional()
   @Type(() => String)
