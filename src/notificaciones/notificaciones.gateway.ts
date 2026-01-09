@@ -10,13 +10,12 @@ import { ConfigService } from '@nestjs/config';
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: '*',
     credentials: true,
   },
 })
 export class NotificacionesGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
-{
+  implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
@@ -25,7 +24,7 @@ export class NotificacionesGateway
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   async handleConnection(client: Socket) {
     try {
@@ -61,7 +60,7 @@ export class NotificacionesGateway
 
     if (usuarioId && this.usuariosConectados.has(usuarioId)) {
       const sockets = this.usuariosConectados.get(usuarioId);
-      
+
       if (sockets) {
         const index = sockets.indexOf(client.id);
 

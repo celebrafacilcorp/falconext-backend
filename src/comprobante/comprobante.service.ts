@@ -937,8 +937,17 @@ export class ComprobanteService {
       comprobanteId: comprobante.id,
       concepto: `Venta ${formalTipo === '01' ? 'Factura' : formalTipo === '03' ? 'Boleta' : 'Nota de Débito'} ${comprobante.serie}-${comprobante.correlativo}`,
     });
-
     return comprobante;
+  }
+
+  async registrarErrorSunat(id: number, errorMessage: string) {
+    return this.prisma.comprobante.update({
+      where: { id },
+      data: {
+        estadoEnvioSunat: 'FALLIDO_ENVIO', // O un estado claro de error
+        sunatErrorMsg: errorMessage,
+      },
+    });
   }
 
   async crearNotaCredito(input: any, empresaId: number) {

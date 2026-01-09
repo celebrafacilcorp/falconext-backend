@@ -351,7 +351,7 @@ export class ProductoLoteService {
     /**
      * Desactivar lote (no eliminar físicamente)
      */
-    async desactivarLote(loteId: number, empresaId: number) {
+    async desactivarLote(loteId: number, empresaId: number, usuarioId: number) {
         const lote = await this.prisma.productoLote.findUnique({
             where: { id: loteId },
             include: { producto: true },
@@ -365,9 +365,59 @@ export class ProductoLoteService {
             throw new BadRequestException('No tienes permisos para este lote');
         }
 
-        return this.prisma.productoLote.update({
-            where: { id: loteId },
-            data: { activo: false },
+        // Si ya está inactivo o sin stock, solo desactivamos sin movimiento
+        if (!lote.stockActual || lote.stockActual <= 0) {
+            return this.prisma.productoLote.update({
+                where: { id: loteId },
+                data: { activo: false },
+            });
+        }
+
+        // Transacción completa: Kardex, Stock Global, Stock Lote
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Crear Movimiento Kardex Global (SALIDA)
+            const movimiento = await tx.movimientoKardex.create({
+                data: {
+                    productoId: lote.productoId,
+                    empresaId: empresaId,
+                    usuarioId: usuarioId,
+                    tipoMovimiento: 'SALIDA',
+                    concepto: `Baja por Vencimiento/Deterioro (Lote: ${lote.lote})`,
+                    cantidad: Number(lote.stockActual),
+                    stockAnterior: lote.producto.stock,
+                    stockActual: lote.producto.stock - Number(lote.stockActual),
+                    fecha: new Date(),
+                    costoUnitario: lote.costoUnitario,
+                },
+            });
+
+            // 2. Crear Movimiento Kardex Lote
+            await tx.movimientoKardexLote.create({
+                data: {
+                    movimientoId: movimiento.id,
+                    productoLoteId: lote.id,
+                    cantidad: Number(lote.stockActual),
+                    stockAnterior: Number(lote.stockActual),
+                    stockActual: 0,
+                },
+            });
+
+            // 3. Actualizar Stock Global del Producto
+            await tx.producto.update({
+                where: { id: lote.productoId },
+                data: {
+                    stock: { decrement: Number(lote.stockActual) },
+                },
+            });
+
+            // 4. Desactivar Lote y poner Stock a 0
+            return tx.productoLote.update({
+                where: { id: loteId },
+                data: {
+                    activo: false,
+                    stockActual: 0,
+                },
+            });
         });
     }
 
@@ -382,6 +432,40 @@ export class ProductoLoteService {
                 producto: true,
             },
             orderBy: { fechaVencimiento: 'asc' },
+        });
+    }
+    /**
+     * Obtener historial kardex de un lote específico
+     */
+    async obtenerKardexLote(loteId: number, empresaId: number) {
+        const lote = await this.prisma.productoLote.findUnique({
+            where: { id: loteId },
+            include: { producto: true },
+        });
+
+        if (!lote) {
+            throw new NotFoundException('Lote no encontrado');
+        }
+
+        if (lote.producto.empresaId !== empresaId) {
+            throw new BadRequestException('No tienes permisos para ver este lote');
+        }
+
+        return this.prisma.movimientoKardexLote.findMany({
+            where: { productoLoteId: loteId },
+            include: {
+                movimiento: {
+                    select: {
+                        fecha: true,
+                        concepto: true,
+                        tipoMovimiento: true,
+                        usuario: {
+                            select: { nombre: true } // Opcional: ver quién hizo el movimiento
+                        }
+                    }
+                }
+            },
+            orderBy: { id: 'desc' }
         });
     }
 }

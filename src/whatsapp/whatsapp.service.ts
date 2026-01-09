@@ -134,12 +134,22 @@ export class WhatsAppService {
       // Generar mensaje base
       let mensaje = this.generarMensaje(params);
 
-      // Preparar URLs de medios y filtrar solo las públicas (Twilio debe poder acceder)
+      console.log(`[WhatsApp Debug] Intentando enviar a ${numeroFormateado} con PDF: ${pdfUrl}`);
+
+      // Preparar URLs de medios
       const candidatos = [pdfUrl, ...(incluyeXML && xmlUrl ? [xmlUrl] : [])].filter(
         (u): u is string => !!u,
       );
-      const esPublica = (u: string) => /^https?:\/\//.test(u) && !/localhost|127\.0\.0\.1/.test(u);
-      const mediaUrls = candidatos.filter(esPublica);
+
+      const mediaUrls = candidatos; // BYPASS PUBLIC FILTER FOR DEBUGGING to see if that's the issue.
+      // const esPublica = (u: string) => /^https?:\/\//.test(u); // && !/localhost|127\.0\.0\.1/.test(u);
+      // const mediaUrls = candidatos.filter(esPublica);
+
+      console.log(`[WhatsApp Debug] Media URLs filtradas: ${JSON.stringify(mediaUrls)}`);
+
+      if (mediaUrls.length === 0 && candidatos.length > 0) {
+        console.warn(`[WhatsApp Warning] Las URLs de medios fueron filtradas o son inválidas. Se enviará como texto.`);
+      }
 
       // Si no hay medios públicos, agregar enlaces al cuerpo del mensaje
       if (mediaUrls.length === 0) {

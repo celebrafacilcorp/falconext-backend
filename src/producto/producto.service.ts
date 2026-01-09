@@ -175,6 +175,8 @@ export class ProductoService {
     // Códigos de productos del sistema que no deben mostrarse a los usuarios
     const productosDelSistema = ['PLD', 'IPM', 'DGD'];
 
+    const searchTerm = search?.trim();
+
     const where: any = {
       empresaId,
       estado: { in: [EstadoType.ACTIVO, EstadoType.INACTIVO] },
@@ -182,10 +184,14 @@ export class ProductoService {
       codigo: { notIn: productosDelSistema },
       marcaId: marcaId ? Number(marcaId) : undefined,
       categoriaId: categoriaId ? Number(categoriaId) : undefined,
-      OR: search
+      OR: searchTerm
         ? [
-          { descripcion: { contains: search, mode: 'insensitive' } },
-          { codigo: { contains: search, mode: 'insensitive' } },
+          { descripcion: { contains: searchTerm, mode: 'insensitive' } },
+          { codigo: { contains: searchTerm, mode: 'insensitive' } },
+          { principioActivo: { contains: searchTerm, mode: 'insensitive' } },
+          { codigoBarras: { contains: searchTerm, mode: 'insensitive' } },
+          { codigoDigemid: { contains: searchTerm, mode: 'insensitive' } },
+          { laboratorio: { contains: searchTerm, mode: 'insensitive' } },
         ]
         : undefined,
     };

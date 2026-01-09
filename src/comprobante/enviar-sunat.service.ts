@@ -99,7 +99,11 @@ export class EnviarSunatService {
           'cbc:IssueTime': { _text: issueTime },
           'cbc:InvoiceTypeCode': {
             _attributes: {
-              listID: comp.tipoDetraccionId ? '1001' : (comp.tipoOperacion?.codigo || '0101')
+              listID: comp.tipoDetraccionId
+                ? '1001'
+                : (comp.tipoOperacion?.codigo === '1001' && !comp.tipoDetraccionId
+                  ? '0101' // Fallback: ID 1001 sin detracción explícita -> Venta Interna 0101
+                  : (comp.tipoOperacion?.codigo || '0101'))
             },
             _text: comp.tipoDoc,
           },

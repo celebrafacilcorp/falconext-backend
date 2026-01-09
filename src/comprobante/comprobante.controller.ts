@@ -228,6 +228,7 @@ export class ComprobanteController {
   @Post('boleta')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   async crearBoleta(@User() user: any, @Body() dto: CrearComprobanteDto) {
+    let comp;
     try {
       console.log('[crearBoleta] Starting - empresaId:', user.empresaId, 'dto:', JSON.stringify(dto));
       const empresa = await this.empresaService.obtenerMiEmpresa(user.empresaId);
@@ -237,19 +238,27 @@ export class ComprobanteController {
         );
       }
       console.log('[crearBoleta] Creating comprobante...');
-      const comp = await this.service.crearFormal(dto, user.empresaId, '03', user.id);
+      comp = await this.service.crearFormal(dto, user.empresaId, '03', user.id);
       console.log('[crearBoleta] Comprobante created:', comp.id, '- Sending to SUNAT...');
       const sunatResp = await this.enviarSunat.execute(comp.id);
       console.log('[crearBoleta] SUNAT response:', JSON.stringify(sunatResp));
       return sunatResp;
     } catch (error: any) {
-      console.error('[crearBoleta] ERROR:', error.message, error.stack);
+      console.error('[crearBoleta] ERROR:', error.message);
+      if (comp?.id) {
+        try {
+          await this.service.registrarErrorSunat(comp.id, error.message || 'Error desconocido al enviar a SUNAT');
+        } catch (innerError) {
+          console.error('Error registrando fallo en BD:', innerError);
+        }
+      }
       throw error;
     }
   }
   @Post('factura')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   async crearFactura(@User() user: any, @Body() dto: CrearComprobanteDto) {
+    let comp;
     try {
       console.log('[crearFactura] Starting - empresaId:', user.empresaId, 'dto:', JSON.stringify(dto));
       const empresa = await this.empresaService.obtenerMiEmpresa(user.empresaId);
@@ -259,13 +268,20 @@ export class ComprobanteController {
         );
       }
       console.log('[crearFactura] Creating comprobante...');
-      const comp = await this.service.crearFormal(dto, user.empresaId, '01', user.id);
+      comp = await this.service.crearFormal(dto, user.empresaId, '01', user.id);
       console.log('[crearFactura] Comprobante created:', comp.id, '- Sending to SUNAT...');
       const sunatResp = await this.enviarSunat.execute(comp.id);
       console.log('[crearFactura] SUNAT response:', JSON.stringify(sunatResp));
       return sunatResp;
     } catch (error: any) {
-      console.error('[crearFactura] ERROR:', error.message, error.stack);
+      console.error('[crearFactura] ERROR:', error.message);
+      if (comp?.id) {
+        try {
+          await this.service.registrarErrorSunat(comp.id, error.message || 'Error desconocido al enviar a SUNAT');
+        } catch (innerError) {
+          console.error('Error registrando fallo en BD:', innerError);
+        }
+      }
       throw error;
     }
   }

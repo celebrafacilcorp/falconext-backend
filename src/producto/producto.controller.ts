@@ -393,7 +393,7 @@ export class ProductoController {
     @User() user: any,
     @Res({ passthrough: true }) res: Response,
   ) {
-    await this.loteService.desactivarLote(id, user.empresaId);
+    await this.loteService.desactivarLote(id, user.empresaId, user.id);
     res.locals.message = 'Lote desactivado correctamente';
     return { success: true };
   }
@@ -430,6 +430,15 @@ export class ProductoController {
 
     res.locals.message = 'Stock ajustado correctamente';
     return { success: true };
+  }
+
+  @Get('lotes/:id/kardex')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  async obtenerKardexLote(
+    @Param('id', ParseIntPipe) id: number,
+    @User() user: any,
+  ) {
+    return this.loteService.obtenerKardexLote(id, user.empresaId);
   }
 
   @Get('lotes/todos')
