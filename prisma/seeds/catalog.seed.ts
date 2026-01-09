@@ -1,5 +1,7 @@
 
 import { PrismaClient } from '@prisma/client';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export const catalogoBodega = [
     { nombre: 'Arroz Costeño Extra 750g', descripcion: 'Arroz superior, bolsa de 750g', precioSugerido: 4.50, unidadConteo: 'NIU' },
@@ -94,24 +96,83 @@ export async function seedCatalog(prisma: PrismaClient) {
 
     // 2. Seed Products for Bodega
     for (const prod of catalogoBodega) {
-        await prisma.productoPlantilla.create({
-            data: { ...prod, rubroId: rubroBodega.id }
+        const exists = await prisma.productoPlantilla.findFirst({
+            where: { nombre: prod.nombre, rubroId: rubroBodega.id }
         });
+        if (!exists) {
+            await prisma.productoPlantilla.create({
+                data: { ...prod, rubroId: rubroBodega.id }
+            });
+        }
     }
 
     // 3. Seed Products for Ferreteria
     for (const prod of catalogoFerreteria) {
-        await prisma.productoPlantilla.create({
-            data: { ...prod, rubroId: rubroFerreteria.id }
+        const exists = await prisma.productoPlantilla.findFirst({
+            where: { nombre: prod.nombre, rubroId: rubroFerreteria.id }
         });
+        if (!exists) {
+            await prisma.productoPlantilla.create({
+                data: { ...prod, rubroId: rubroFerreteria.id }
+            });
+        }
     }
 
     // 4. Seed Products for Farmacia
-    for (const prod of catalogoFarmacia) {
-        await prisma.productoPlantilla.create({
-            data: { ...prod, rubroId: rubroFarmacia.id }
-        });
+    const jsonPath = path.join(process.cwd(), 'catalogo_farmacia_real.json');
+    let farmaciaData: any[] = catalogoFarmacia;
+
+    if (fs.existsSync(jsonPath)) {
+        try {
+            const fileContent = fs.readFileSync(jsonPath, 'utf-8');
+            const realCatalog = JSON.parse(fileContent);
+            console.log(`📦 Encontrado catalogo_farmacia_real.json con ${realCatalog.length} productos.`);
+            farmaciaData = realCatalog;
+        } catch (error) {
+            console.error('Error leyendo catalogo_farmacia_real.json, usando fallback:', error);
+        }
+    } else {
+        console.log('⚠️ No se encontró catalogo_farmacia_real.json, usando catálogo de muestra.');
     }
+
+    console.log('⏳ Procesando productos de farmacia (Upsert seguro)...');
+    let currentCode = 1;
+    let addedCount = 0;
+
+    for (const prod of farmaciaData) {
+        // Verificar si ya existe por nombre para NO duplicar ni afectar existentes
+        const exists = await prisma.productoPlantilla.findFirst({
+            where: { nombre: prod.nombre, rubroId: rubroFarmacia.id }
+        });
+
+        if (!exists) {
+            // Generar código secuencial FAR0001, FAR0002...
+            const codigo = `FAR${currentCode.toString().padStart(4, '0')}`;
+            // Remover campos que no estén en el esquema si vienen del JSON
+            const { esGenerico, ...validData } = prod;
+
+            try {
+                await prisma.productoPlantilla.create({
+                    data: {
+                        nombre: validData.nombre,
+                        descripcion: validData.descripcion,
+                        precioSugerido: validData.precioSugerido || 0,
+                        unidadConteo: validData.unidadConteo || 'NIU',
+                        imagenUrl: validData.imagenUrl || null,
+                        rubroId: rubroFarmacia.id,
+                        codigo: codigo
+                    }
+                });
+                addedCount++;
+                currentCode++;
+            } catch (e) {
+                console.warn(`Error insertando ${validData.nombre}:`, e);
+            }
+        } else {
+            // Si ya existe, simplemente saltamos. No afectamos nada.
+        }
+    }
+    console.log(`✅ Farmacia procesada: ${addedCount} nuevos productos agregados.`);
 
     console.log('✅ Global Catalog seeded successfully');
 }
